@@ -7,6 +7,18 @@ export default defineConfig({
     port: 3000,
     open: true
   },
+  build: {
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          ui: ['framer-motion', 'lucide-react'],
+          charts: ['recharts']
+        }
+      }
+    }
+  },
   define: {
     'import.meta.env': 'import.meta.env'
   }
