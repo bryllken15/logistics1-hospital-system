@@ -243,6 +243,96 @@ export interface Database {
           created_at?: string
         }
       }
+      suppliers: {
+        Row: {
+          id: string
+          name: string
+          contact: string
+          email: string
+          rating: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          contact: string
+          email: string
+          rating?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          contact?: string
+          email?: string
+          rating?: number
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      maintenance_logs: {
+        Row: {
+          id: string
+          asset_id: string
+          maintenance_type: string
+          technician: string
+          cost: number
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          asset_id: string
+          maintenance_type: string
+          technician: string
+          cost?: number
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          asset_id?: string
+          maintenance_type?: string
+          technician?: string
+          cost?: number
+          status?: string
+          created_at?: string
+        }
+      }
+      delivery_receipts: {
+        Row: {
+          id: string
+          receipt_number: string
+          supplier: string
+          amount: number
+          items: number
+          status: 'pending_verification' | 'verified' | 'archived'
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          receipt_number: string
+          supplier: string
+          amount: number
+          items: number
+          status?: 'pending_verification' | 'verified' | 'archived'
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          receipt_number?: string
+          supplier?: string
+          amount?: number
+          items?: number
+          status?: 'pending_verification' | 'verified' | 'archived'
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never

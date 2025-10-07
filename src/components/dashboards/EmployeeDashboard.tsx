@@ -1,21 +1,32 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Package, Truck, Download, Plus, Search, QrCode, AlertTriangle } from 'lucide-react'
+import { Package, Truck, Download, Plus, Search, QrCode, AlertTriangle, X, Edit3 } from 'lucide-react'
+import { inventoryService, systemLogService } from '../../services/database'
+import toast from 'react-hot-toast'
 
 const EmployeeDashboard = () => {
   const [rfidCode, setRfidCode] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
+  const [inventoryData, setInventoryData] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
-  // Mock data
-  const inventoryData = [
-    { id: 1, item: 'Surgical Masks', rfid: 'RFID001', quantity: 150, status: 'In Stock', location: 'A-1-01' },
-    { id: 2, item: 'Disposable Gloves', rfid: 'RFID002', quantity: 45, status: 'Low Stock', location: 'A-1-02' },
-    { id: 3, item: 'Antiseptic Solution', rfid: 'RFID003', quantity: 200, status: 'In Stock', location: 'A-2-01' },
-    { id: 4, item: 'Bandages', rfid: 'RFID004', quantity: 12, status: 'Critical', location: 'A-2-02' },
-    { id: 5, item: 'Syringes', rfid: 'RFID005', quantity: 300, status: 'In Stock', location: 'B-1-01' },
-    { id: 6, item: 'Thermometers', rfid: 'RFID006', quantity: 8, status: 'Low Stock', location: 'B-1-02' }
-  ]
+  useEffect(() => {
+    loadInventoryData()
+  }, [])
 
+  const loadInventoryData = async () => {
+    try {
+      setLoading(true)
+      const data = await inventoryService.getAll()
+      setInventoryData(data)
+    } catch (error) {
+      console.error('Error loading inventory data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Mock delivery logs for now (can be replaced with real data later)
   const deliveryLogs = [
     { id: 1, destination: 'Emergency Ward', items: 15, date: '2025-01-15 09:30', status: 'Delivered' },
     { id: 2, destination: 'Surgery Department', items: 8, date: '2025-01-15 10:15', status: 'In Transit' },
@@ -23,24 +34,84 @@ const EmployeeDashboard = () => {
     { id: 4, destination: 'Pediatrics', items: 6, date: '2025-01-15 11:45', status: 'Pending' }
   ]
 
-  const lowStockItems = inventoryData.filter(item => item.status === 'Low Stock' || item.status === 'Critical')
+  const lowStockItems = inventoryData.filter(item => item.status === 'low_stock' || item.status === 'critical')
 
-  const handleRfidScan = () => {
+  const [showAddItemForm, setShowAddItemForm] = useState(false)
+  const [showDeliveryForm, setShowDeliveryForm] = useState(false)
+  const [newItem, setNewItem] = useState({
+    item_name: '',
+    rfid_code: '',
+    quantity: 0,
+    location: '',
+    status: 'in_stock'
+  })
+  const [deliveryData, setDeliveryData] = useState({
+    destination: '',
+    items: 0,
+    description: ''
+  })
+
+  const handleRfidScan = async () => {
     if (rfidCode) {
-      // Simulate RFID scan
-      const item = inventoryData.find(item => item.rfid === rfidCode)
-      if (item) {
-        alert(`RFID Scanned: ${item.item} - Quantity: ${item.quantity} - Location: ${item.location}`)
-      } else {
-        alert('RFID code not found in inventory')
+      try {
+        const item = await inventoryService.getByRfid(rfidCode)
+        if (item) {
+          toast.success(`RFID Scanned: ${item.item_name} - Quantity: ${item.quantity} - Location: ${item.location}`)
+        } else {
+          toast.error('RFID code not found in inventory')
+        }
+      } catch (error) {
+        toast.error('RFID code not found in inventory')
       }
       setRfidCode('')
     }
   }
 
+  const handleAddItem = async () => {
+    try {
+      await inventoryService.create(newItem)
+      await loadInventoryData()
+      setNewItem({ item_name: '', rfid_code: '', quantity: 0, location: '', status: 'in_stock' })
+      setShowAddItemForm(false)
+      toast.success('Inventory item added successfully!')
+    } catch (error) {
+      console.error('Error adding item:', error)
+      toast.error('Failed to add inventory item')
+    }
+  }
+
+  const handleRecordDelivery = async () => {
+    try {
+      // Create delivery record in system logs
+      await systemLogService.create({
+        action: 'Delivery Recorded',
+        user_id: '33333333-3333-3333-3333-333333333333', // Employee user ID
+        details: `Delivery to ${deliveryData.destination}: ${deliveryData.items} items - ${deliveryData.description}`
+      })
+      
+      setDeliveryData({ destination: '', items: 0, description: '' })
+      setShowDeliveryForm(false)
+      toast.success('Delivery recorded successfully!')
+    } catch (error) {
+      console.error('Error recording delivery:', error)
+      toast.error('Failed to record delivery')
+    }
+  }
+
+  const handleUpdateQuantity = async (itemId: string, newQuantity: number) => {
+    try {
+      await inventoryService.updateQuantity(itemId, newQuantity)
+      await loadInventoryData()
+      toast.success('Inventory quantity updated!')
+    } catch (error) {
+      console.error('Error updating quantity:', error)
+      toast.error('Failed to update quantity')
+    }
+  }
+
   const filteredInventory = inventoryData.filter(item =>
-    item.item.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.rfid.toLowerCase().includes(searchTerm.toLowerCase())
+    item.item_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.rfid_code.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   return (
@@ -66,8 +137,8 @@ const EmployeeDashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total Items in Stock</p>
-              <p className="text-2xl font-bold text-primary">715</p>
-              <p className="text-xs text-green-600">+5% from last week</p>
+              <p className="text-2xl font-bold text-primary">{loading ? '...' : inventoryData.length}</p>
+              <p className="text-xs text-green-600">Live data from database</p>
             </div>
             <Package className="w-8 h-8 text-primary" />
           </div>
@@ -138,11 +209,17 @@ const EmployeeDashboard = () => {
             </div>
           </div>
           <div className="flex space-x-2">
-            <button className="btn-secondary flex items-center space-x-2">
+            <button 
+              onClick={() => setShowAddItemForm(true)}
+              className="btn-secondary flex items-center space-x-2"
+            >
               <Plus className="w-4 h-4" />
               <span>Add Item</span>
             </button>
-            <button className="btn-primary flex items-center space-x-2">
+            <button 
+              onClick={() => setShowDeliveryForm(true)}
+              className="btn-primary flex items-center space-x-2"
+            >
               <Package className="w-4 h-4" />
               <span>Record Delivery</span>
             </button>
@@ -188,22 +265,32 @@ const EmployeeDashboard = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredInventory.map((item) => (
-                  <tr key={item.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-3 text-sm text-gray-900">{item.item}</td>
-                    <td className="py-3 text-sm text-gray-600 font-mono">{item.rfid}</td>
-                    <td className="py-3 text-sm text-gray-900">{item.quantity}</td>
-                    <td className="py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        item.status === 'In Stock' ? 'bg-green-100 text-green-800' :
-                        item.status === 'Low Stock' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-red-100 text-red-800'
-                      }`}>
-                        {item.status}
-                      </span>
-                    </td>
+                {loading ? (
+                  <tr>
+                    <td colSpan={4} className="py-8 text-center text-gray-500">Loading inventory...</td>
                   </tr>
-                ))}
+                ) : filteredInventory.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="py-8 text-center text-gray-500">No inventory items found</td>
+                  </tr>
+                ) : (
+                  filteredInventory.map((item) => (
+                    <tr key={item.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-3 text-sm text-gray-900">{item.item_name}</td>
+                      <td className="py-3 text-sm text-gray-600 font-mono">{item.rfid_code}</td>
+                      <td className="py-3 text-sm text-gray-900">{item.quantity}</td>
+                      <td className="py-3">
+                        <span className={`px-2 py-1 rounded-full text-xs ${
+                          item.status === 'in_stock' ? 'bg-green-100 text-green-800' :
+                          item.status === 'low_stock' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {item.status.replace('_', ' ').toUpperCase()}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -255,8 +342,8 @@ const EmployeeDashboard = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {lowStockItems.map((item) => (
               <div key={item.id} className="p-3 bg-orange-50 rounded-lg border border-orange-200">
-                <p className="font-medium text-gray-900">{item.item}</p>
-                <p className="text-sm text-gray-600">RFID: {item.rfid}</p>
+                <p className="font-medium text-gray-900">{item.item_name}</p>
+                <p className="text-sm text-gray-600">RFID: {item.rfid_code}</p>
                 <p className="text-sm text-gray-600">Quantity: {item.quantity}</p>
                 <p className="text-sm text-gray-600">Location: {item.location}</p>
               </div>
@@ -274,20 +361,196 @@ const EmployeeDashboard = () => {
       >
         <h3 className="text-lg font-semibold text-primary mb-4">Quick Actions</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button className="btn-primary flex items-center justify-center space-x-2">
+          <button 
+            onClick={() => setShowAddItemForm(true)}
+            className="btn-primary flex items-center justify-center space-x-2"
+          >
             <Plus className="w-5 h-5" />
             <span>Add Inventory</span>
           </button>
-          <button className="btn-secondary flex items-center justify-center space-x-2">
+          <button 
+            onClick={() => setRfidCode('')}
+            className="btn-secondary flex items-center justify-center space-x-2"
+          >
             <QrCode className="w-5 h-5" />
             <span>Scan RFID</span>
           </button>
-          <button className="btn-primary flex items-center justify-center space-x-2">
+          <button 
+            onClick={() => setShowDeliveryForm(true)}
+            className="btn-primary flex items-center justify-center space-x-2"
+          >
             <Truck className="w-5 h-5" />
             <span>Record Delivery</span>
           </button>
         </div>
       </motion.div>
+
+      {/* Add Item Modal */}
+      {showAddItemForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-lg p-6 w-full max-w-md mx-4"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-primary">Add Inventory Item</h3>
+              <button
+                onClick={() => setShowAddItemForm(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Item Name</label>
+                <input
+                  type="text"
+                  value={newItem.item_name}
+                  onChange={(e) => setNewItem({...newItem, item_name: e.target.value})}
+                  className="input-field w-full"
+                  placeholder="Surgical Masks"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">RFID Code</label>
+                <input
+                  type="text"
+                  value={newItem.rfid_code}
+                  onChange={(e) => setNewItem({...newItem, rfid_code: e.target.value})}
+                  className="input-field w-full"
+                  placeholder="RFID001"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
+                <input
+                  type="number"
+                  value={newItem.quantity}
+                  onChange={(e) => setNewItem({...newItem, quantity: parseInt(e.target.value) || 0})}
+                  className="input-field w-full"
+                  placeholder="100"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
+                <input
+                  type="text"
+                  value={newItem.location}
+                  onChange={(e) => setNewItem({...newItem, location: e.target.value})}
+                  className="input-field w-full"
+                  placeholder="A-1-01"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                <select
+                  value={newItem.status}
+                  onChange={(e) => setNewItem({...newItem, status: e.target.value})}
+                  className="input-field w-full"
+                >
+                  <option value="in_stock">In Stock</option>
+                  <option value="low_stock">Low Stock</option>
+                  <option value="critical">Critical</option>
+                  <option value="out_of_stock">Out of Stock</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => setShowAddItemForm(false)}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddItem}
+                className="btn-primary"
+              >
+                Add Item
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Record Delivery Modal */}
+      {showDeliveryForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-lg p-6 w-full max-w-md mx-4"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-primary">Record Delivery</h3>
+              <button
+                onClick={() => setShowDeliveryForm(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Destination</label>
+                <input
+                  type="text"
+                  value={deliveryData.destination}
+                  onChange={(e) => setDeliveryData({...deliveryData, destination: e.target.value})}
+                  className="input-field w-full"
+                  placeholder="Emergency Ward"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Number of Items</label>
+                <input
+                  type="number"
+                  value={deliveryData.items}
+                  onChange={(e) => setDeliveryData({...deliveryData, items: parseInt(e.target.value) || 0})}
+                  className="input-field w-full"
+                  placeholder="15"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                <textarea
+                  value={deliveryData.description}
+                  onChange={(e) => setDeliveryData({...deliveryData, description: e.target.value})}
+                  className="input-field w-full"
+                  rows={3}
+                  placeholder="Medical supplies for emergency procedures..."
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => setShowDeliveryForm(false)}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRecordDelivery}
+                className="btn-primary"
+              >
+                Record Delivery
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   )
 }

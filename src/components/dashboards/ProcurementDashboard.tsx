@@ -1,11 +1,101 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { ShoppingCart, Truck, Package, Plus, Search, QrCode, CheckCircle } from 'lucide-react'
+import { ShoppingCart, Truck, Package, Plus, Search, QrCode, CheckCircle, X, Edit3 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
+import { purchaseOrderService, supplierService, systemLogService } from '../../services/database'
+import toast from 'react-hot-toast'
 
 const ProcurementDashboard = () => {
   const [rfidCode, setRfidCode] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
+  const [purchaseOrders, setPurchaseOrders] = useState<any[]>([])
+  const [suppliers, setSuppliers] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showCreateOrderForm, setShowCreateOrderForm] = useState(false)
+  const [showAddSupplierForm, setShowAddSupplierForm] = useState(false)
+  const [newOrder, setNewOrder] = useState({
+    supplier: '',
+    items: 0,
+    amount: 0,
+    description: ''
+  })
+  const [newSupplier, setNewSupplier] = useState({
+    name: '',
+    contact: '',
+    email: '',
+    rating: 5
+  })
+
+  useEffect(() => {
+    loadProcurementData()
+  }, [])
+
+  const loadProcurementData = async () => {
+    try {
+      setLoading(true)
+      const [orders, supplierData] = await Promise.all([
+        purchaseOrderService.getAll(),
+        supplierService.getAll()
+      ])
+      
+      setPurchaseOrders(orders)
+      setSuppliers(supplierData)
+    } catch (error) {
+      console.error('Error loading procurement data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCreateOrder = async () => {
+    try {
+      await purchaseOrderService.create({
+        supplier: newOrder.supplier,
+        items: newOrder.items,
+        amount: newOrder.amount,
+        description: newOrder.description,
+        status: 'pending'
+      })
+      
+      await loadProcurementData()
+      setNewOrder({ supplier: '', items: 0, amount: 0, description: '' })
+      setShowCreateOrderForm(false)
+      toast.success('Purchase order created successfully!')
+    } catch (error) {
+      console.error('Error creating order:', error)
+      toast.error('Failed to create purchase order')
+    }
+  }
+
+  const handleAddSupplier = async () => {
+    try {
+      await supplierService.create({
+        name: newSupplier.name,
+        contact: newSupplier.contact,
+        email: newSupplier.email,
+        rating: newSupplier.rating
+      })
+      
+      await loadProcurementData()
+      setNewSupplier({ name: '', contact: '', email: '', rating: 5 })
+      setShowAddSupplierForm(false)
+      toast.success('Supplier added successfully!')
+    } catch (error) {
+      console.error('Error adding supplier:', error)
+      toast.error('Failed to add supplier')
+    }
+  }
+
+  const handleUpdateOrderStatus = async (orderId: string, status: string) => {
+    try {
+      await purchaseOrderService.updateStatus(orderId, status)
+      await loadProcurementData()
+      toast.success(`Order status updated to ${status}`)
+    } catch (error) {
+      console.error('Error updating order status:', error)
+      toast.error('Failed to update order status')
+    }
+  }
 
   // Mock data
   const supplierPerformance = [
@@ -24,12 +114,6 @@ const ProcurementDashboard = () => {
     { month: 'Jun', amount: 670000, orders: 20 }
   ]
 
-  const purchaseOrders = [
-    { id: 1, supplier: 'MedSupply Co.', items: 15, amount: '₱45,000', status: 'Pending', rfid: 'RFID001' },
-    { id: 2, supplier: 'HealthTech Ltd.', items: 8, amount: '₱32,500', status: 'Approved', rfid: 'RFID002' },
-    { id: 3, supplier: 'MedEquip Inc.', items: 12, amount: '₱78,000', status: 'Delivered', rfid: 'RFID003' },
-    { id: 4, supplier: 'PharmaCorp', items: 6, amount: '₱23,000', status: 'In Transit', rfid: 'RFID004' }
-  ]
 
   const receivedDeliveries = [
     { id: 1, supplier: 'MedSupply Co.', items: 15, rfid: 'RFID001', receivedAt: '2025-01-15 09:30', status: 'Verified' },
@@ -37,14 +121,18 @@ const ProcurementDashboard = () => {
     { id: 3, supplier: 'MedEquip Inc.', items: 12, rfid: 'RFID003', receivedAt: '2025-01-15 11:00', status: 'Verified' }
   ]
 
-  const handleRfidScan = () => {
+  const handleRfidScan = async () => {
     if (rfidCode) {
-      // Simulate RFID scan for procurement
-      const delivery = receivedDeliveries.find(d => d.rfid === rfidCode)
-      if (delivery) {
-        alert(`RFID Scanned: Delivery from ${delivery.supplier} - ${delivery.items} items - Status: ${delivery.status}`)
+      try {
+        // Look up RFID in purchase orders
+        const order = purchaseOrders.find(o => o.rfid_code === rfidCode)
+        if (order) {
+          toast.success(`RFID Scanned: Order from ${order.supplier} - ₱${order.amount.toLocaleString()} - Status: ${order.status}`)
       } else {
-        alert('RFID code not found in deliveries')
+          toast.error('RFID code not found in purchase orders')
+        }
+      } catch (error) {
+        toast.error('RFID code not found in purchase orders')
       }
       setRfidCode('')
     }
@@ -231,28 +319,37 @@ const ProcurementDashboard = () => {
           </div>
 
           <div className="space-y-3">
-            {filteredOrders.map((order) => (
+            {loading ? (
+              <div className="text-center py-4">Loading purchase orders...</div>
+            ) : filteredOrders.length === 0 ? (
+              <div className="text-center py-4 text-gray-500">No purchase orders found</div>
+            ) : (
+              filteredOrders.map((order) => (
               <div key={order.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div className="flex-1">
                   <p className="font-medium text-gray-900">{order.supplier}</p>
-                  <p className="text-sm text-gray-600">{order.items} items • {order.amount}</p>
-                  <p className="text-xs text-gray-500">RFID: {order.rfid}</p>
+                    <p className="text-sm text-gray-600">{order.items} items • ₱{order.amount.toLocaleString()}</p>
+                    <p className="text-xs text-gray-500">RFID: {order.rfid_code}</p>
                 </div>
                 <div className="flex items-center space-x-2">
                   <span className={`px-2 py-1 rounded-full text-xs ${
-                    order.status === 'Delivered' ? 'bg-green-100 text-green-800' :
-                    order.status === 'In Transit' ? 'bg-blue-100 text-blue-800' :
-                    order.status === 'Approved' ? 'bg-yellow-100 text-yellow-800' :
+                      order.status === 'delivered' ? 'bg-green-100 text-green-800' :
+                      order.status === 'in_transit' ? 'bg-blue-100 text-blue-800' :
+                      order.status === 'approved' ? 'bg-yellow-100 text-yellow-800' :
                     'bg-orange-100 text-orange-800'
                   }`}>
-                    {order.status}
+                      {order.status.toUpperCase()}
                   </span>
-                  <button className="p-1 text-gray-400 hover:text-primary">
+                    <button 
+                      onClick={() => handleUpdateOrderStatus(order.id, 'delivered')}
+                      className="p-1 text-gray-400 hover:text-primary"
+                    >
                     <CheckCircle className="w-4 h-4" />
                   </button>
                 </div>
               </div>
-            ))}
+              ))
+            )}
           </div>
         </motion.div>
 
@@ -295,20 +392,195 @@ const ProcurementDashboard = () => {
       >
         <h3 className="text-lg font-semibold text-primary mb-4">Quick Actions</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button className="btn-primary flex items-center justify-center space-x-2">
+          <button 
+            onClick={() => setShowCreateOrderForm(true)}
+            className="btn-primary flex items-center justify-center space-x-2"
+          >
             <Plus className="w-5 h-5" />
             <span>Create Purchase Request</span>
           </button>
-          <button className="btn-secondary flex items-center justify-center space-x-2">
+          <button 
+            onClick={() => loadProcurementData()}
+            className="btn-secondary flex items-center justify-center space-x-2"
+          >
             <Truck className="w-5 h-5" />
-            <span>View Deliveries</span>
+            <span>Refresh Data</span>
           </button>
-          <button className="btn-primary flex items-center justify-center space-x-2">
+          <button 
+            onClick={() => setShowAddSupplierForm(true)}
+            className="btn-primary flex items-center justify-center space-x-2"
+          >
             <QrCode className="w-5 h-5" />
-            <span>Scan RFID Tag</span>
+            <span>Add Supplier</span>
           </button>
         </div>
       </motion.div>
+
+      {/* Create Purchase Order Modal */}
+      {showCreateOrderForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-lg p-6 w-full max-w-md mx-4"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-primary">Create Purchase Order</h3>
+              <button
+                onClick={() => setShowCreateOrderForm(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Supplier</label>
+                <input
+                  type="text"
+                  value={newOrder.supplier}
+                  onChange={(e) => setNewOrder({...newOrder, supplier: e.target.value})}
+                  className="input-field w-full"
+                  placeholder="MedSupply Co."
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Number of Items</label>
+                <input
+                  type="number"
+                  value={newOrder.items}
+                  onChange={(e) => setNewOrder({...newOrder, items: parseInt(e.target.value) || 0})}
+                  className="input-field w-full"
+                  placeholder="15"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Amount (₱)</label>
+                <input
+                  type="number"
+                  value={newOrder.amount}
+                  onChange={(e) => setNewOrder({...newOrder, amount: parseInt(e.target.value) || 0})}
+                  className="input-field w-full"
+                  placeholder="45000"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                <textarea
+                  value={newOrder.description}
+                  onChange={(e) => setNewOrder({...newOrder, description: e.target.value})}
+                  className="input-field w-full"
+                  rows={3}
+                  placeholder="Medical supplies for emergency ward..."
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => setShowCreateOrderForm(false)}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateOrder}
+                className="btn-primary"
+              >
+                Create Order
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Add Supplier Modal */}
+      {showAddSupplierForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-lg p-6 w-full max-w-md mx-4"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-primary">Add New Supplier</h3>
+              <button
+                onClick={() => setShowAddSupplierForm(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Supplier Name</label>
+                <input
+                  type="text"
+                  value={newSupplier.name}
+                  onChange={(e) => setNewSupplier({...newSupplier, name: e.target.value})}
+                  className="input-field w-full"
+                  placeholder="MedSupply Co."
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Contact Person</label>
+                <input
+                  type="text"
+                  value={newSupplier.contact}
+                  onChange={(e) => setNewSupplier({...newSupplier, contact: e.target.value})}
+                  className="input-field w-full"
+                  placeholder="John Smith"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                <input
+                  type="email"
+                  value={newSupplier.email}
+                  onChange={(e) => setNewSupplier({...newSupplier, email: e.target.value})}
+                  className="input-field w-full"
+                  placeholder="contact@medsupply.com"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Rating (1-5)</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="5"
+                  value={newSupplier.rating}
+                  onChange={(e) => setNewSupplier({...newSupplier, rating: parseInt(e.target.value) || 5})}
+                  className="input-field w-full"
+                  placeholder="5"
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => setShowAddSupplierForm(false)}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddSupplier}
+                className="btn-primary"
+              >
+                Add Supplier
+          </button>
+        </div>
+      </motion.div>
+        </div>
+      )}
     </div>
   )
 }

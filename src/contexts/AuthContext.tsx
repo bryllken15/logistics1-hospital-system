@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import toast from 'react-hot-toast'
+import { supabase } from '../lib/supabase'
 
 export interface User {
   id: string
@@ -111,6 +112,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true)
     
     try {
+      // For now, use mock authentication but with Supabase user lookup
+      // TODO: Implement proper Supabase Auth later
+      
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 1000))
       

@@ -25,7 +25,9 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
     if (!user) return []
 
     const baseItems = [
-      { icon: Home, label: 'Dashboard', href: '/dashboard', roles: ['all'] }
+      { icon: Home, label: 'Dashboard', href: '/dashboard', roles: ['all'] },
+      { icon: BarChart3, label: 'Analytics', href: '/analytics', roles: ['all'] },
+      { icon: Settings, label: 'Hospital Settings', href: '/settings', roles: ['admin', 'manager'] }
     ]
 
     const roleSpecificItems = {

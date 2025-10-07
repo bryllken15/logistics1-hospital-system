@@ -1,11 +1,109 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Wrench, CheckCircle, Calendar, Plus, Search, QrCode, Clock } from 'lucide-react'
+import { Wrench, CheckCircle, Calendar, Plus, Search, QrCode, Clock, X, Edit3 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
+import { assetService, maintenanceService, systemLogService } from '../../services/database'
+import toast from 'react-hot-toast'
 
 const MaintenanceDashboard = () => {
   const [rfidCode, setRfidCode] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
+  const [assets, setAssets] = useState<any[]>([])
+  const [maintenanceLogs, setMaintenanceLogs] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showAddAssetForm, setShowAddAssetForm] = useState(false)
+  const [showScheduleMaintenanceForm, setShowScheduleMaintenanceForm] = useState(false)
+  const [newAsset, setNewAsset] = useState({
+    name: '',
+    asset_type: '',
+    location: '',
+    condition: 'good',
+    rfid_code: ''
+  })
+  const [newMaintenance, setNewMaintenance] = useState({
+    asset_id: '',
+    maintenance_type: 'scheduled',
+    scheduled_date: '',
+    description: '',
+    priority: 'medium'
+  })
+
+  useEffect(() => {
+    loadMaintenanceData()
+  }, [])
+
+  const loadMaintenanceData = async () => {
+    try {
+      setLoading(true)
+      const [assetData, maintenanceData] = await Promise.all([
+        assetService.getAll(),
+        maintenanceService.getAll()
+      ])
+      
+      setAssets(assetData)
+      setMaintenanceLogs(maintenanceData)
+    } catch (error) {
+      console.error('Error loading maintenance data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAddAsset = async () => {
+    try {
+      await assetService.create(newAsset)
+      await loadMaintenanceData()
+      setNewAsset({ name: '', asset_type: '', location: '', condition: 'good', rfid_code: '' })
+      setShowAddAssetForm(false)
+      toast.success('Asset added successfully!')
+    } catch (error) {
+      console.error('Error adding asset:', error)
+      toast.error('Failed to add asset')
+    }
+  }
+
+  const handleScheduleMaintenance = async () => {
+    try {
+      await maintenanceService.create(newMaintenance)
+      
+      // Log maintenance scheduling
+      await systemLogService.create({
+        action: 'Maintenance Scheduled',
+        user_id: '66666666-6666-6666-6666-666666666666', // Maintenance user ID
+        details: `Maintenance scheduled for asset ${newMaintenance.asset_id} - ${newMaintenance.maintenance_type}`
+      })
+      
+      await loadMaintenanceData()
+      setNewMaintenance({ asset_id: '', maintenance_type: 'scheduled', scheduled_date: '', description: '', priority: 'medium' })
+      setShowScheduleMaintenanceForm(false)
+      toast.success('Maintenance scheduled successfully!')
+    } catch (error) {
+      console.error('Error scheduling maintenance:', error)
+      toast.error('Failed to schedule maintenance')
+    }
+  }
+
+  const handleCompleteMaintenance = async (maintenanceId: string) => {
+    try {
+      await maintenanceService.updateStatus(maintenanceId, 'completed')
+      await loadMaintenanceData()
+      toast.success('Maintenance marked as completed!')
+    } catch (error) {
+      console.error('Error completing maintenance:', error)
+      toast.error('Failed to complete maintenance')
+    }
+  }
+
+  const handleUpdateAssetCondition = async (assetId: string, condition: string) => {
+    try {
+      await assetService.updateCondition(assetId, condition)
+      await loadMaintenanceData()
+      toast.success('Asset condition updated!')
+    } catch (error) {
+      console.error('Error updating asset condition:', error)
+      toast.error('Failed to update asset condition')
+    }
+  }
 
   // Mock data
   const assetStatus = [
@@ -33,12 +131,6 @@ const MaintenanceDashboard = () => {
     { id: 6, name: 'Dialysis Machine', tagId: 'RFID006', condition: 'Good', nextMaintenance: '2025-02-05', location: 'Nephrology' }
   ]
 
-  const maintenanceLogs = [
-    { id: 1, asset: 'MRI Machine', type: 'Scheduled', date: '2025-01-15', technician: 'John Smith', status: 'Completed', cost: '₱5,000' },
-    { id: 2, asset: 'Ventilator Unit', type: 'Emergency', date: '2025-01-14', technician: 'Sarah Johnson', status: 'In Progress', cost: '₱8,500' },
-    { id: 3, asset: 'X-Ray Machine', type: 'Preventive', date: '2025-01-13', technician: 'Mike Davis', status: 'Completed', cost: '₱3,200' },
-    { id: 4, asset: 'Ultrasound Scanner', type: 'Scheduled', date: '2025-01-12', technician: 'Lisa Wilson', status: 'Completed', cost: '₱2,800' }
-  ]
 
   const upcomingMaintenance = [
     { id: 1, asset: 'CT Scanner', type: 'Critical', date: '2025-01-25', priority: 'High' },
@@ -47,14 +139,17 @@ const MaintenanceDashboard = () => {
     { id: 4, asset: 'Ultrasound Scanner', type: 'Preventive', date: '2025-02-28', priority: 'Low' }
   ]
 
-  const handleRfidScan = () => {
+  const handleRfidScan = async () => {
     if (rfidCode) {
-      // Simulate RFID scan for asset
-      const asset = assetList.find(item => item.tagId === rfidCode)
-      if (asset) {
-        alert(`RFID Scanned: ${asset.name} - Condition: ${asset.condition} - Next Maintenance: ${asset.nextMaintenance}`)
-      } else {
-        alert('RFID code not found in asset database')
+      try {
+        const asset = assets.find(a => a.rfid_code === rfidCode)
+        if (asset) {
+          toast.success(`RFID Scanned: ${asset.name} - Condition: ${asset.condition} - Location: ${asset.location}`)
+        } else {
+          toast.error('RFID code not found in assets')
+        }
+      } catch (error) {
+        toast.error('RFID code not found in assets')
       }
       setRfidCode('')
     }
@@ -234,7 +329,12 @@ const MaintenanceDashboard = () => {
       >
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-primary">Asset List</h3>
-          <button className="btn-primary text-sm">Add Asset</button>
+          <button 
+            onClick={() => setShowAddAssetForm(true)}
+            className="btn-primary text-sm"
+          >
+            Add Asset
+          </button>
         </div>
         
         {/* Search */}
@@ -264,34 +364,55 @@ const MaintenanceDashboard = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredAssets.map((asset) => (
-                <tr key={asset.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-3 text-sm text-gray-900">{asset.name}</td>
-                  <td className="py-3 text-sm text-gray-600 font-mono">{asset.tagId}</td>
-                  <td className="py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      asset.condition === 'Excellent' ? 'bg-green-100 text-green-800' :
-                      asset.condition === 'Good' ? 'bg-blue-100 text-blue-800' :
-                      asset.condition === 'Needs Repair' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-red-100 text-red-800'
-                    }`}>
-                      {asset.condition}
-                    </span>
-                  </td>
-                  <td className="py-3 text-sm text-gray-900">{asset.nextMaintenance}</td>
-                  <td className="py-3 text-sm text-gray-600">{asset.location}</td>
-                  <td className="py-3">
-                    <div className="flex space-x-2">
-                      <button className="p-1 text-gray-400 hover:text-primary">
-                        <Wrench className="w-4 h-4" />
-                      </button>
-                      <button className="p-1 text-gray-400 hover:text-primary">
-                        <Calendar className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-8 text-gray-500">Loading assets...</td>
                 </tr>
-              ))}
+              ) : assets.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-8 text-gray-500">No assets found</td>
+                </tr>
+              ) : (
+                assets.map((asset) => (
+                  <tr key={asset.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="py-3 text-sm text-gray-900">{asset.name}</td>
+                    <td className="py-3 text-sm text-gray-600 font-mono">{asset.rfid_code}</td>
+                    <td className="py-3">
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        asset.condition === 'excellent' ? 'bg-green-100 text-green-800' :
+                        asset.condition === 'good' ? 'bg-blue-100 text-blue-800' :
+                        asset.condition === 'needs_repair' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {asset.condition.replace('_', ' ').toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="py-3 text-sm text-gray-900">{new Date(asset.next_maintenance).toLocaleDateString()}</td>
+                    <td className="py-3 text-sm text-gray-600">{asset.location}</td>
+                    <td className="py-3">
+                      <div className="flex space-x-2">
+                        <button 
+                          onClick={() => handleUpdateAssetCondition(asset.id, 'needs_repair')}
+                          className="p-1 text-gray-400 hover:text-primary"
+                          title="Mark for Repair"
+                        >
+                          <Wrench className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setNewMaintenance({...newMaintenance, asset_id: asset.id})
+                            setShowScheduleMaintenanceForm(true)
+                          }}
+                          className="p-1 text-gray-400 hover:text-primary"
+                          title="Schedule Maintenance"
+                        >
+                          <Calendar className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -386,6 +507,203 @@ const MaintenanceDashboard = () => {
           </button>
         </div>
       </motion.div>
+
+      {/* Add Asset Modal */}
+      {showAddAssetForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-lg p-6 w-full max-w-md mx-4"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-primary">Add New Asset</h3>
+              <button
+                onClick={() => setShowAddAssetForm(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Asset Name</label>
+                <input
+                  type="text"
+                  value={newAsset.name}
+                  onChange={(e) => setNewAsset({...newAsset, name: e.target.value})}
+                  className="input-field w-full"
+                  placeholder="MRI Machine"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Asset Type</label>
+                <input
+                  type="text"
+                  value={newAsset.asset_type}
+                  onChange={(e) => setNewAsset({...newAsset, asset_type: e.target.value})}
+                  className="input-field w-full"
+                  placeholder="Medical Equipment"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
+                <input
+                  type="text"
+                  value={newAsset.location}
+                  onChange={(e) => setNewAsset({...newAsset, location: e.target.value})}
+                  className="input-field w-full"
+                  placeholder="Radiology Department"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">RFID Code</label>
+                <input
+                  type="text"
+                  value={newAsset.rfid_code}
+                  onChange={(e) => setNewAsset({...newAsset, rfid_code: e.target.value})}
+                  className="input-field w-full"
+                  placeholder="RFID001"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Condition</label>
+                <select
+                  value={newAsset.condition}
+                  onChange={(e) => setNewAsset({...newAsset, condition: e.target.value})}
+                  className="input-field w-full"
+                >
+                  <option value="excellent">Excellent</option>
+                  <option value="good">Good</option>
+                  <option value="needs_repair">Needs Repair</option>
+                  <option value="out_of_service">Out of Service</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => setShowAddAssetForm(false)}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddAsset}
+                className="btn-primary"
+              >
+                Add Asset
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Schedule Maintenance Modal */}
+      {showScheduleMaintenanceForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-lg p-6 w-full max-w-md mx-4"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-primary">Schedule Maintenance</h3>
+              <button
+                onClick={() => setShowScheduleMaintenanceForm(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Asset</label>
+                <select
+                  value={newMaintenance.asset_id}
+                  onChange={(e) => setNewMaintenance({...newMaintenance, asset_id: e.target.value})}
+                  className="input-field w-full"
+                >
+                  <option value="">Select Asset</option>
+                  {assets.map(asset => (
+                    <option key={asset.id} value={asset.id}>{asset.name}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Maintenance Type</label>
+                <select
+                  value={newMaintenance.maintenance_type}
+                  onChange={(e) => setNewMaintenance({...newMaintenance, maintenance_type: e.target.value})}
+                  className="input-field w-full"
+                >
+                  <option value="scheduled">Scheduled</option>
+                  <option value="preventive">Preventive</option>
+                  <option value="emergency">Emergency</option>
+                  <option value="repair">Repair</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Scheduled Date</label>
+                <input
+                  type="date"
+                  value={newMaintenance.scheduled_date}
+                  onChange={(e) => setNewMaintenance({...newMaintenance, scheduled_date: e.target.value})}
+                  className="input-field w-full"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Priority</label>
+                <select
+                  value={newMaintenance.priority}
+                  onChange={(e) => setNewMaintenance({...newMaintenance, priority: e.target.value})}
+                  className="input-field w-full"
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="critical">Critical</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                <textarea
+                  value={newMaintenance.description}
+                  onChange={(e) => setNewMaintenance({...newMaintenance, description: e.target.value})}
+                  className="input-field w-full"
+                  rows={3}
+                  placeholder="Maintenance description..."
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => setShowScheduleMaintenanceForm(false)}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleScheduleMaintenance}
+                className="btn-primary"
+              >
+                Schedule Maintenance
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   )
 }

@@ -4,15 +4,16 @@
   "private": true,
   "dependencies": {
     "@supabase/supabase-js": "^2.38.0",
+    "clsx": "^2.0.0",
+    "dotenv": "^17.2.3",
+    "framer-motion": "^10.16.4",
+    "lucide-react": "^0.294.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.8.1",
-    "framer-motion": "^10.16.4",
-    "recharts": "^2.8.0",
-    "lucide-react": "^0.294.0",
     "react-hook-form": "^7.47.0",
     "react-hot-toast": "^2.4.1",
-    "clsx": "^2.0.0"
+    "react-router-dom": "^6.8.1",
+    "recharts": "^2.8.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.37",
@@ -33,6 +34,7 @@
     "supabase:reset": "supabase db reset",
     "supabase:status": "supabase status",
     "db:setup": "node scripts/setup-database.js",
+    "db:seed": "node scripts/seed-sample-data.js",
     "deploy:setup": "node scripts/setup-deployment.js",
     "deploy:vercel": "vercel --prod",
     "deploy:github": "git add . && git commit -m 'Deploy to production' && git push origin main"

@@ -1,10 +1,91 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { ClipboardList, Users, Truck, TrendingUp, Plus, Calendar, CheckCircle } from 'lucide-react'
+import { ClipboardList, Users, Truck, TrendingUp, Plus, Calendar, CheckCircle, X, Edit3 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
+import { projectService, systemLogService } from '../../services/database'
+import toast from 'react-hot-toast'
 
 const ProjectManagerDashboard = () => {
   const [selectedProject, setSelectedProject] = useState('all')
+  const [projects, setProjects] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showCreateProjectForm, setShowCreateProjectForm] = useState(false)
+  const [showUpdateProgressForm, setShowUpdateProgressForm] = useState(false)
+  const [selectedProjectForUpdate, setSelectedProjectForUpdate] = useState<any>(null)
+  const [newProject, setNewProject] = useState({
+    name: '',
+    description: '',
+    start_date: '',
+    end_date: '',
+    budget: 0,
+    status: 'planning'
+  })
+  const [progressUpdate, setProgressUpdate] = useState({
+    progress: 0,
+    notes: ''
+  })
+
+  useEffect(() => {
+    loadProjectData()
+  }, [])
+
+  const loadProjectData = async () => {
+    try {
+      setLoading(true)
+      const data = await projectService.getAll()
+      setProjects(data)
+    } catch (error) {
+      console.error('Error loading project data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCreateProject = async () => {
+    try {
+      await projectService.create(newProject)
+      await loadProjectData()
+      setNewProject({ name: '', description: '', start_date: '', end_date: '', budget: 0, status: 'planning' })
+      setShowCreateProjectForm(false)
+      toast.success('Project created successfully!')
+    } catch (error) {
+      console.error('Error creating project:', error)
+      toast.error('Failed to create project')
+    }
+  }
+
+  const handleUpdateProgress = async () => {
+    try {
+      await projectService.updateProgress(selectedProjectForUpdate.id, progressUpdate.progress)
+      
+      // Log progress update
+      await systemLogService.create({
+        action: 'Project Progress Updated',
+        user_id: '55555555-5555-5555-5555-555555555555', // Project Manager user ID
+        details: `Project "${selectedProjectForUpdate.name}" progress updated to ${progressUpdate.progress}% - ${progressUpdate.notes}`
+      })
+      
+      await loadProjectData()
+      setProgressUpdate({ progress: 0, notes: '' })
+      setShowUpdateProgressForm(false)
+      setSelectedProjectForUpdate(null)
+      toast.success('Project progress updated!')
+    } catch (error) {
+      console.error('Error updating progress:', error)
+      toast.error('Failed to update project progress')
+    }
+  }
+
+  const handleCompleteProject = async (projectId: string) => {
+    try {
+      await projectService.updateStatus(projectId, 'completed')
+      await loadProjectData()
+      toast.success('Project marked as completed!')
+    } catch (error) {
+      console.error('Error completing project:', error)
+      toast.error('Failed to complete project')
+    }
+  }
 
   // Mock data
   const projectProgress = [
@@ -215,7 +296,12 @@ const ProjectManagerDashboard = () => {
               <option value="delayed">Delayed</option>
               <option value="in_progress">In Progress</option>
             </select>
-            <button className="btn-primary text-sm">Create New Project</button>
+            <button 
+              onClick={() => setShowCreateProjectForm(true)}
+              className="btn-primary text-sm"
+            >
+              Create New Project
+            </button>
           </div>
         </div>
         
@@ -232,48 +318,72 @@ const ProjectManagerDashboard = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredProjects.map((project) => (
-                <tr key={project.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-3">
-                    <div>
-                      <p className="font-medium text-gray-900">{project.name}</p>
-                      <p className="text-xs text-gray-500">{project.startDate} - {project.endDate}</p>
-                    </div>
-                  </td>
-                  <td className="py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      project.status === 'On Track' ? 'bg-green-100 text-green-800' :
-                      project.status === 'Delayed' ? 'bg-red-100 text-red-800' :
-                      'bg-blue-100 text-blue-800'
-                    }`}>
-                      {project.status}
-                    </span>
-                  </td>
-                  <td className="py-3">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-16 bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-primary h-2 rounded-full"
-                          style={{ width: `${project.progress}%` }}
-                        />
-                      </div>
-                      <span className="text-sm text-gray-600">{project.progress}%</span>
-                    </div>
-                  </td>
-                  <td className="py-3 text-sm text-gray-900">{project.staff}</td>
-                  <td className="py-3 text-sm text-gray-900">{project.budget}</td>
-                  <td className="py-3">
-                    <div className="flex space-x-2">
-                      <button className="p-1 text-gray-400 hover:text-primary">
-                        <Calendar className="w-4 h-4" />
-                      </button>
-                      <button className="p-1 text-gray-400 hover:text-primary">
-                        <TrendingUp className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-8 text-gray-500">Loading projects...</td>
                 </tr>
-              ))}
+              ) : projects.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-8 text-gray-500">No projects found</td>
+                </tr>
+              ) : (
+                projects.map((project) => (
+                  <tr key={project.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="py-3">
+                      <div>
+                        <p className="font-medium text-gray-900">{project.name}</p>
+                        <p className="text-xs text-gray-500">{new Date(project.start_date).toLocaleDateString()} - {new Date(project.end_date).toLocaleDateString()}</p>
+                      </div>
+                    </td>
+                    <td className="py-3">
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        project.status === 'on_track' ? 'bg-green-100 text-green-800' :
+                        project.status === 'delayed' ? 'bg-red-100 text-red-800' :
+                        'bg-blue-100 text-blue-800'
+                      }`}>
+                        {project.status.replace('_', ' ').toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="py-3">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-16 bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-primary h-2 rounded-full"
+                            style={{ width: `${project.progress}%` }}
+                          />
+                        </div>
+                        <span className="text-sm text-gray-600">{project.progress}%</span>
+                      </div>
+                    </td>
+                    <td className="py-3 text-sm text-gray-900">8</td>
+                    <td className="py-3 text-sm text-gray-900">₱{project.budget.toLocaleString()}</td>
+                    <td className="py-3">
+                      <div className="flex space-x-2">
+                        <button 
+                          onClick={() => {
+                            setSelectedProjectForUpdate(project)
+                            setProgressUpdate({ progress: project.progress, notes: '' })
+                            setShowUpdateProgressForm(true)
+                          }}
+                          className="p-1 text-gray-400 hover:text-primary"
+                          title="Update Progress"
+                        >
+                          <TrendingUp className="w-4 h-4" />
+                        </button>
+                        {project.status !== 'completed' && (
+                          <button 
+                            onClick={() => handleCompleteProject(project.id)}
+                            className="p-1 text-gray-400 hover:text-green-600"
+                            title="Complete Project"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -368,6 +478,178 @@ const ProjectManagerDashboard = () => {
           </button>
         </div>
       </motion.div>
+
+      {/* Create Project Modal */}
+      {showCreateProjectForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-lg p-6 w-full max-w-md mx-4"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-primary">Create New Project</h3>
+              <button
+                onClick={() => setShowCreateProjectForm(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Project Name</label>
+                <input
+                  type="text"
+                  value={newProject.name}
+                  onChange={(e) => setNewProject({...newProject, name: e.target.value})}
+                  className="input-field w-full"
+                  placeholder="Emergency Ward Renovation"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                <textarea
+                  value={newProject.description}
+                  onChange={(e) => setNewProject({...newProject, description: e.target.value})}
+                  className="input-field w-full"
+                  rows={3}
+                  placeholder="Renovation of emergency ward with new equipment..."
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+                  <input
+                    type="date"
+                    value={newProject.start_date}
+                    onChange={(e) => setNewProject({...newProject, start_date: e.target.value})}
+                    className="input-field w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
+                  <input
+                    type="date"
+                    value={newProject.end_date}
+                    onChange={(e) => setNewProject({...newProject, end_date: e.target.value})}
+                    className="input-field w-full"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Budget (₱)</label>
+                <input
+                  type="number"
+                  value={newProject.budget}
+                  onChange={(e) => setNewProject({...newProject, budget: parseInt(e.target.value) || 0})}
+                  className="input-field w-full"
+                  placeholder="2500000"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                <select
+                  value={newProject.status}
+                  onChange={(e) => setNewProject({...newProject, status: e.target.value})}
+                  className="input-field w-full"
+                >
+                  <option value="planning">Planning</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="on_track">On Track</option>
+                  <option value="delayed">Delayed</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => setShowCreateProjectForm(false)}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateProject}
+                className="btn-primary"
+              >
+                Create Project
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Update Progress Modal */}
+      {showUpdateProgressForm && selectedProjectForUpdate && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-lg p-6 w-full max-w-md mx-4"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-primary">Update Project Progress</h3>
+              <button
+                onClick={() => setShowUpdateProgressForm(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-600">Project: <span className="font-medium">{selectedProjectForUpdate.name}</span></p>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Progress (%)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={progressUpdate.progress}
+                  onChange={(e) => setProgressUpdate({...progressUpdate, progress: parseInt(e.target.value) || 0})}
+                  className="input-field w-full"
+                  placeholder="75"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                <textarea
+                  value={progressUpdate.notes}
+                  onChange={(e) => setProgressUpdate({...progressUpdate, notes: e.target.value})}
+                  className="input-field w-full"
+                  rows={3}
+                  placeholder="Progress update notes..."
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => setShowUpdateProgressForm(false)}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateProgress}
+                className="btn-primary"
+              >
+                Update Progress
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   )
 }

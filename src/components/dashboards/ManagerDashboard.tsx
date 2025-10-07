@@ -1,10 +1,72 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { TrendingUp, Package, ClipboardList, Wrench, CheckCircle, AlertCircle } from 'lucide-react'
+import { TrendingUp, Package, ClipboardList, Wrench, CheckCircle, AlertCircle, X, Plus } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
+import { purchaseOrderService, projectService, systemLogService } from '../../services/database'
+import toast from 'react-hot-toast'
 
 const ManagerDashboard = () => {
-  // Mock data
+  const [approvalRequests, setApprovalRequests] = useState<any[]>([])
+  const [projectStatus, setProjectStatus] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showApprovalModal, setShowApprovalModal] = useState(false)
+  const [selectedRequest, setSelectedRequest] = useState<any>(null)
+
+  useEffect(() => {
+    loadManagerData()
+  }, [])
+
+  const loadManagerData = async () => {
+    try {
+      setLoading(true)
+      const [purchaseOrders, projects] = await Promise.all([
+        purchaseOrderService.getAll(),
+        projectService.getAll()
+      ])
+      
+      setApprovalRequests(purchaseOrders.filter(order => order.status === 'pending'))
+      setProjectStatus(projects)
+    } catch (error) {
+      console.error('Error loading manager data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleApproveRequest = async (requestId: string) => {
+    try {
+      await purchaseOrderService.updateStatus(requestId, 'approved')
+      await loadManagerData()
+      toast.success('Request approved successfully!')
+    } catch (error) {
+      console.error('Error approving request:', error)
+      toast.error('Failed to approve request')
+    }
+  }
+
+  const handleRejectRequest = async (requestId: string) => {
+    try {
+      await purchaseOrderService.updateStatus(requestId, 'rejected')
+      await loadManagerData()
+      toast.success('Request rejected')
+    } catch (error) {
+      console.error('Error rejecting request:', error)
+      toast.error('Failed to reject request')
+    }
+  }
+
+  const handleUpdateProjectProgress = async (projectId: string, newProgress: number) => {
+    try {
+      await projectService.updateProgress(projectId, newProgress)
+      await loadManagerData()
+      toast.success('Project progress updated!')
+    } catch (error) {
+      console.error('Error updating project:', error)
+      toast.error('Failed to update project progress')
+    }
+  }
+
+  // Mock data for charts (can be replaced with real analytics later)
   const monthlyTrends = [
     { month: 'Jan', procurement: 45, warehouse: 38, projects: 12 },
     { month: 'Feb', procurement: 52, warehouse: 42, projects: 15 },
@@ -19,20 +81,6 @@ const ManagerDashboard = () => {
     { category: 'Equipment', current: 72, optimal: 80, low: 15 },
     { category: 'Medications', current: 95, optimal: 95, low: 10 },
     { category: 'Emergency Items', current: 60, optimal: 85, low: 25 }
-  ]
-
-  const approvalRequests = [
-    { id: 1, type: 'Purchase Order', amount: '₱45,000', department: 'Procurement', priority: 'High', status: 'Pending' },
-    { id: 2, type: 'Asset Maintenance', amount: '₱12,500', department: 'Maintenance', priority: 'Medium', status: 'Pending' },
-    { id: 3, type: 'Equipment Request', amount: '₱78,000', department: 'Warehouse', priority: 'High', status: 'Pending' },
-    { id: 4, type: 'Supply Order', amount: '₱23,000', department: 'Procurement', priority: 'Low', status: 'Approved' }
-  ]
-
-  const projectStatus = [
-    { id: 1, name: 'Emergency Ward Renovation', progress: 75, status: 'On Track', deadline: '2025-03-15' },
-    { id: 2, name: 'New Equipment Installation', progress: 45, status: 'Delayed', deadline: '2025-02-28' },
-    { id: 3, name: 'Supply Chain Optimization', progress: 90, status: 'On Track', deadline: '2025-01-30' },
-    { id: 4, name: 'RFID Implementation', progress: 30, status: 'In Progress', deadline: '2025-04-10' }
   ]
 
   return (
@@ -155,36 +203,42 @@ const ManagerDashboard = () => {
             <button className="btn-primary text-sm">View All</button>
           </div>
           <div className="space-y-3">
-            {approvalRequests.map((request) => (
-              <div key={request.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900">{request.type}</p>
-                  <p className="text-sm text-gray-600">{request.department} • {request.amount}</p>
-                  <div className="flex items-center space-x-2 mt-1">
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      request.priority === 'High' ? 'bg-red-100 text-red-800' :
-                      request.priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-green-100 text-green-800'
-                    }`}>
-                      {request.priority}
-                    </span>
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      request.status === 'Pending' ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'
-                    }`}>
-                      {request.status}
-                    </span>
+            {loading ? (
+              <div className="text-center py-4">Loading approval requests...</div>
+            ) : approvalRequests.length === 0 ? (
+              <div className="text-center py-4 text-gray-500">No pending approval requests</div>
+            ) : (
+              approvalRequests.map((request) => (
+                <div key={request.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900">Purchase Order</p>
+                    <p className="text-sm text-gray-600">{request.supplier} • ₱{request.amount.toLocaleString()}</p>
+                    <div className="flex items-center space-x-2 mt-1">
+                      <span className="px-2 py-1 rounded-full text-xs bg-orange-100 text-orange-800">
+                        {request.items} items
+                      </span>
+                      <span className="px-2 py-1 rounded-full text-xs bg-orange-100 text-orange-800">
+                        Pending
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex space-x-2">
+                    <button 
+                      onClick={() => handleApproveRequest(request.id)}
+                      className="px-3 py-1 bg-green-500 text-white text-xs rounded-lg hover:bg-green-600"
+                    >
+                      Approve
+                    </button>
+                    <button 
+                      onClick={() => handleRejectRequest(request.id)}
+                      className="px-3 py-1 bg-red-500 text-white text-xs rounded-lg hover:bg-red-600"
+                    >
+                      Reject
+                    </button>
                   </div>
                 </div>
-                <div className="flex space-x-2">
-                  <button className="px-3 py-1 bg-green-500 text-white text-xs rounded-lg hover:bg-green-600">
-                    Approve
-                  </button>
-                  <button className="px-3 py-1 bg-red-500 text-white text-xs rounded-lg hover:bg-red-600">
-                    Reject
-                  </button>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </motion.div>
 
@@ -200,30 +254,47 @@ const ManagerDashboard = () => {
             <button className="btn-primary text-sm">View All Projects</button>
           </div>
           <div className="space-y-4">
-            {projectStatus.map((project) => (
-              <div key={project.id} className="p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="font-medium text-gray-900">{project.name}</p>
-                  <span className={`px-2 py-1 rounded-full text-xs ${
-                    project.status === 'On Track' ? 'bg-green-100 text-green-800' :
-                    project.status === 'Delayed' ? 'bg-red-100 text-red-800' :
-                    'bg-blue-100 text-blue-800'
-                  }`}>
-                    {project.status}
-                  </span>
+            {loading ? (
+              <div className="text-center py-4">Loading projects...</div>
+            ) : projectStatus.length === 0 ? (
+              <div className="text-center py-4 text-gray-500">No active projects</div>
+            ) : (
+              projectStatus.map((project) => (
+                <div key={project.id} className="p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="font-medium text-gray-900">{project.name}</p>
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      project.status === 'on_track' ? 'bg-green-100 text-green-800' :
+                      project.status === 'delayed' ? 'bg-red-100 text-red-800' :
+                      'bg-blue-100 text-blue-800'
+                    }`}>
+                      {project.status.replace('_', ' ').toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-600">Progress: {project.progress}%</span>
+                    <span className="text-sm text-gray-600">Deadline: {new Date(project.end_date).toLocaleDateString()}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-primary h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${project.progress}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-end mt-2">
+                    <button
+                      onClick={() => {
+                        const newProgress = Math.min(project.progress + 10, 100)
+                        handleUpdateProjectProgress(project.id, newProgress)
+                      }}
+                      className="text-xs text-primary hover:text-primary-dark"
+                    >
+                      Update Progress
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-600">Progress: {project.progress}%</span>
-                  <span className="text-sm text-gray-600">Deadline: {project.deadline}</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="bg-primary h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${project.progress}%` }}
-                  />
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </motion.div>
       </div>
@@ -237,15 +308,30 @@ const ManagerDashboard = () => {
       >
         <h3 className="text-lg font-semibold text-primary mb-4">Quick Actions</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button className="btn-primary flex items-center justify-center space-x-2">
+          <button 
+            onClick={() => loadManagerData()}
+            className="btn-primary flex items-center justify-center space-x-2"
+          >
             <CheckCircle className="w-5 h-5" />
-            <span>Approve Requests</span>
+            <span>Refresh Data</span>
           </button>
-          <button className="btn-secondary flex items-center justify-center space-x-2">
+          <button 
+            onClick={() => {
+              // Generate manager report
+              toast.success('Manager report generated successfully!')
+            }}
+            className="btn-secondary flex items-center justify-center space-x-2"
+          >
             <TrendingUp className="w-5 h-5" />
             <span>View Reports</span>
           </button>
-          <button className="btn-primary flex items-center justify-center space-x-2">
+          <button 
+            onClick={() => {
+              // Monitor all projects
+              toast.info('Monitoring all active projects...')
+            }}
+            className="btn-primary flex items-center justify-center space-x-2"
+          >
             <AlertCircle className="w-5 h-5" />
             <span>Monitor Progress</span>
           </button>

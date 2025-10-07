@@ -123,6 +123,18 @@ export const projectService = {
 
     if (error) throw error
     return data
+  },
+
+  // Update project status
+  async updateStatus(id: string, status: string) {
+    const { data, error } = await supabase
+      .from('projects')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+
+    if (error) throw error
+    return data
   }
 }
 
@@ -146,6 +158,17 @@ export const assetService = {
       .select('*')
       .eq('rfid_code', rfidCode)
       .single()
+
+    if (error) throw error
+    return data
+  },
+
+  // Create new asset
+  async create(asset: any) {
+    const { data, error } = await supabase
+      .from('assets')
+      .insert(asset)
+      .select()
 
     if (error) throw error
     return data
@@ -196,6 +219,18 @@ export const documentService = {
     const { data, error } = await supabase
       .from('documents')
       .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+
+    if (error) throw error
+    return data
+  },
+
+  // Archive document
+  async archive(id: string) {
+    const { data, error } = await supabase
+      .from('documents')
+      .update({ status: 'archived', updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
 
@@ -318,6 +353,130 @@ export const analyticsService = {
     const { data, error } = await supabase
       .from('documents')
       .select('file_type, status, created_at')
+
+    if (error) throw error
+    return data
+  }
+}
+
+// Supplier Services
+export const supplierService = {
+  // Get all suppliers
+  async getAll() {
+    const { data, error } = await supabase
+      .from('suppliers')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return data
+  },
+
+  // Add new supplier
+  async create(supplier: any) {
+    const { data, error } = await supabase
+      .from('suppliers')
+      .insert(supplier)
+      .select()
+
+    if (error) throw error
+    return data
+  },
+
+  // Update supplier
+  async update(id: string, updates: any) {
+    const { data, error } = await supabase
+      .from('suppliers')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+
+    if (error) throw error
+    return data
+  },
+
+  // Delete supplier
+  async delete(id: string) {
+    const { error } = await supabase
+      .from('suppliers')
+      .delete()
+      .eq('id', id)
+
+    if (error) throw error
+  }
+}
+
+// Maintenance Services
+export const maintenanceService = {
+  // Get all maintenance logs
+  async getAll() {
+    const { data, error } = await supabase
+      .from('maintenance_logs')
+      .select(`
+        *,
+        assets:asset_id(name, rfid_code)
+      `)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return data
+  },
+
+  // Create new maintenance log
+  async create(maintenance: any) {
+    const { data, error } = await supabase
+      .from('maintenance_logs')
+      .insert(maintenance)
+      .select()
+
+    if (error) throw error
+    return data
+  },
+
+  // Update maintenance status
+  async updateStatus(id: string, status: string) {
+    const { data, error } = await supabase
+      .from('maintenance_logs')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+
+    if (error) throw error
+    return data
+  }
+}
+
+// Delivery Receipt Services
+export const deliveryReceiptService = {
+  // Get all delivery receipts
+  async getAll() {
+    const { data, error } = await supabase
+      .from('delivery_receipts')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return data
+  },
+
+  // Create new delivery receipt
+  async create(receipt: any) {
+    const { data, error } = await supabase
+      .from('delivery_receipts')
+      .insert(receipt)
+      .select()
+
+    if (error) throw error
+    return data
+  },
+
+  // Update delivery receipt status
+  async updateStatus(id: string, status: string) {
+    const { data, error } = await supabase
+      .from('delivery_receipts')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
 
     if (error) throw error
     return data

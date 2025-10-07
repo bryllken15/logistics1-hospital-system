@@ -1,12 +1,96 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { FileText, Upload, CheckCircle, Archive, Search, Download, Eye } from 'lucide-react'
+import { FileText, Upload, CheckCircle, Archive, Search, Download, Eye, X, Plus } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
+import { documentService, systemLogService } from '../../services/database'
+import toast from 'react-hot-toast'
 
 const DocumentAnalystDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterType, setFilterType] = useState('all')
+  const [documents, setDocuments] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showUploadForm, setShowUploadForm] = useState(false)
+  const [showVerifyForm, setShowVerifyForm] = useState(false)
+  const [selectedDocument, setSelectedDocument] = useState<any>(null)
+  const [newDocument, setNewDocument] = useState({
+    file_name: '',
+    file_type: '',
+    description: '',
+    file_size: 0
+  })
+  const [verificationNotes, setVerificationNotes] = useState('')
+
+  useEffect(() => {
+    loadDocumentData()
+  }, [])
+
+  const loadDocumentData = async () => {
+    try {
+      setLoading(true)
+      const data = await documentService.getAll()
+      setDocuments(data)
+    } catch (error) {
+      console.error('Error loading document data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleUploadDocument = async () => {
+    try {
+      await documentService.create(newDocument)
+      
+      // Log document upload
+      await systemLogService.create({
+        action: 'Document Uploaded',
+        user_id: '77777777-7777-7777-7777-777777777777', // Document Analyst user ID
+        details: `Document uploaded: ${newDocument.file_name} (${newDocument.file_type})`
+      })
+      
+      await loadDocumentData()
+      setNewDocument({ file_name: '', file_type: '', description: '', file_size: 0 })
+      setShowUploadForm(false)
+      toast.success('Document uploaded successfully!')
+    } catch (error) {
+      console.error('Error uploading document:', error)
+      toast.error('Failed to upload document')
+    }
+  }
+
+  const handleVerifyDocument = async (documentId: string, status: string) => {
+    try {
+      await documentService.updateStatus(documentId, status)
+      
+      // Log document verification
+      await systemLogService.create({
+        action: 'Document Verified',
+        user_id: '77777777-7777-7777-7777-777777777777',
+        details: `Document ${status}: ${selectedDocument?.file_name} - ${verificationNotes}`
+      })
+      
+      await loadDocumentData()
+      setVerificationNotes('')
+      setShowVerifyForm(false)
+      setSelectedDocument(null)
+      toast.success(`Document ${status} successfully!`)
+    } catch (error) {
+      console.error('Error verifying document:', error)
+      toast.error('Failed to verify document')
+    }
+  }
+
+  const handleArchiveDocument = async (documentId: string) => {
+    try {
+      await documentService.archive(documentId)
+      await loadDocumentData()
+      toast.success('Document archived successfully!')
+    } catch (error) {
+      console.error('Error archiving document:', error)
+      toast.error('Failed to archive document')
+    }
+  }
 
   // Mock data
   const documentStats = [
@@ -311,41 +395,69 @@ const DocumentAnalystDashboard = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredDocuments.map((doc) => (
-                <tr key={doc.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-3">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{doc.fileName}</p>
-                      <p className="text-xs text-gray-500">by {doc.uploadedBy}</p>
-                    </div>
-                  </td>
-                  <td className="py-3 text-sm text-gray-600">{doc.type}</td>
-                  <td className="py-3 text-sm text-gray-900">{doc.date}</td>
-                  <td className="py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      doc.status === 'Verified' ? 'bg-green-100 text-green-800' :
-                      doc.status === 'Pending Verification' ? 'bg-orange-100 text-orange-800' :
-                      'bg-blue-100 text-blue-800'
-                    }`}>
-                      {doc.status}
-                    </span>
-                  </td>
-                  <td className="py-3 text-sm text-gray-600">{doc.size}</td>
-                  <td className="py-3">
-                    <div className="flex space-x-2">
-                      <button className="p-1 text-gray-400 hover:text-primary">
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button className="p-1 text-gray-400 hover:text-primary">
-                        <Download className="w-4 h-4" />
-                      </button>
-                      <button className="p-1 text-gray-400 hover:text-primary">
-                        <CheckCircle className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-8 text-gray-500">Loading documents...</td>
                 </tr>
-              ))}
+              ) : documents.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-8 text-gray-500">No documents found</td>
+                </tr>
+              ) : (
+                documents.map((doc) => (
+                  <tr key={doc.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="py-3">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{doc.file_name}</p>
+                        <p className="text-xs text-gray-500">by {doc.uploaded_by}</p>
+                      </div>
+                    </td>
+                    <td className="py-3 text-sm text-gray-600">{doc.file_type.replace('_', ' ').toUpperCase()}</td>
+                    <td className="py-3 text-sm text-gray-900">{new Date(doc.created_at).toLocaleDateString()}</td>
+                    <td className="py-3">
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        doc.status === 'verified' ? 'bg-green-100 text-green-800' :
+                        doc.status === 'pending_verification' ? 'bg-orange-100 text-orange-800' :
+                        'bg-blue-100 text-blue-800'
+                      }`}>
+                        {doc.status.replace('_', ' ').toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="py-3 text-sm text-gray-600">{(doc.file_size / 1024 / 1024).toFixed(1)} MB</td>
+                    <td className="py-3">
+                      <div className="flex space-x-2">
+                        <button 
+                          onClick={() => {
+                            setSelectedDocument(doc)
+                            setShowVerifyForm(true)
+                          }}
+                          className="p-1 text-gray-400 hover:text-primary"
+                          title="Verify Document"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleArchiveDocument(doc.id)}
+                          className="p-1 text-gray-400 hover:text-primary"
+                          title="Archive Document"
+                        >
+                          <Archive className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => {
+                            // Download functionality
+                            toast.info('Download functionality would be implemented here')
+                          }}
+                          className="p-1 text-gray-400 hover:text-primary"
+                          title="Download Document"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -422,20 +534,180 @@ const DocumentAnalystDashboard = () => {
       >
         <h3 className="text-lg font-semibold text-primary mb-4">Quick Actions</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button className="btn-primary flex items-center justify-center space-x-2">
+          <button 
+            onClick={() => setShowUploadForm(true)}
+            className="btn-primary flex items-center justify-center space-x-2"
+          >
             <Upload className="w-5 h-5" />
             <span>Upload Document</span>
           </button>
-          <button className="btn-secondary flex items-center justify-center space-x-2">
+          <button 
+            onClick={() => loadDocumentData()}
+            className="btn-secondary flex items-center justify-center space-x-2"
+          >
             <CheckCircle className="w-5 h-5" />
-            <span>Verify Document</span>
+            <span>Refresh Data</span>
           </button>
-          <button className="btn-primary flex items-center justify-center space-x-2">
+          <button 
+            onClick={() => {
+              // Archive all verified documents
+              toast.info('Archive functionality would be implemented here')
+            }}
+            className="btn-primary flex items-center justify-center space-x-2"
+          >
             <Archive className="w-5 h-5" />
-            <span>Archive Record</span>
+            <span>Archive Records</span>
           </button>
         </div>
       </motion.div>
+
+      {/* Upload Document Modal */}
+      {showUploadForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-lg p-6 w-full max-w-md mx-4"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-primary">Upload Document</h3>
+              <button
+                onClick={() => setShowUploadForm(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">File Name</label>
+                <input
+                  type="text"
+                  value={newDocument.file_name}
+                  onChange={(e) => setNewDocument({...newDocument, file_name: e.target.value})}
+                  className="input-field w-full"
+                  placeholder="Delivery_Receipt_001.pdf"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">File Type</label>
+                <select
+                  value={newDocument.file_type}
+                  onChange={(e) => setNewDocument({...newDocument, file_type: e.target.value})}
+                  className="input-field w-full"
+                >
+                  <option value="">Select Type</option>
+                  <option value="delivery_receipt">Delivery Receipt</option>
+                  <option value="purchase_order">Purchase Order</option>
+                  <option value="invoice">Invoice</option>
+                  <option value="contract">Contract</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">File Size (MB)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={newDocument.file_size}
+                  onChange={(e) => setNewDocument({...newDocument, file_size: parseFloat(e.target.value) || 0})}
+                  className="input-field w-full"
+                  placeholder="2.3"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                <textarea
+                  value={newDocument.description}
+                  onChange={(e) => setNewDocument({...newDocument, description: e.target.value})}
+                  className="input-field w-full"
+                  rows={3}
+                  placeholder="Document description..."
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => setShowUploadForm(false)}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUploadDocument}
+                className="btn-primary"
+              >
+                Upload Document
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Verify Document Modal */}
+      {showVerifyForm && selectedDocument && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-lg p-6 w-full max-w-md mx-4"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-primary">Verify Document</h3>
+              <button
+                onClick={() => setShowVerifyForm(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-600">Document: <span className="font-medium">{selectedDocument.file_name}</span></p>
+              <p className="text-sm text-gray-600">Type: <span className="font-medium">{selectedDocument.file_type.replace('_', ' ').toUpperCase()}</span></p>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Verification Notes</label>
+                <textarea
+                  value={verificationNotes}
+                  onChange={(e) => setVerificationNotes(e.target.value)}
+                  className="input-field w-full"
+                  rows={3}
+                  placeholder="Verification notes..."
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => setShowVerifyForm(false)}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleVerifyDocument(selectedDocument.id, 'verified')}
+                className="btn-primary"
+              >
+                Approve
+              </button>
+              <button
+                onClick={() => handleVerifyDocument(selectedDocument.id, 'rejected')}
+                className="btn-secondary bg-red-500 hover:bg-red-600"
+              >
+                Reject
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   )
 }
