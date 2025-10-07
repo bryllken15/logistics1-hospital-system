@@ -328,7 +328,7 @@ const ManagerDashboard = () => {
           <button 
             onClick={() => {
               // Monitor all projects
-              toast.info('Monitoring all active projects...')
+              toast.success('Monitoring all active projects...')
             }}
             className="btn-primary flex items-center justify-center space-x-2"
           >

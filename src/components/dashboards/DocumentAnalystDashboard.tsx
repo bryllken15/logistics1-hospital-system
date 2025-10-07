@@ -446,7 +446,7 @@ const DocumentAnalystDashboard = () => {
                         <button 
                           onClick={() => {
                             // Download functionality
-                            toast.info('Download functionality would be implemented here')
+                            toast.success('Download functionality would be implemented here')
                           }}
                           className="p-1 text-gray-400 hover:text-primary"
                           title="Download Document"
@@ -551,7 +551,7 @@ const DocumentAnalystDashboard = () => {
           <button 
             onClick={() => {
               // Archive all verified documents
-              toast.info('Archive functionality would be implemented here')
+              toast.success('Archive functionality would be implemented here')
             }}
             className="btn-primary flex items-center justify-center space-x-2"
           >
