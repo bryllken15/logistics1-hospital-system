@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Wrench, AlertTriangle, CheckCircle, Calendar, Plus, Search, QrCode, Clock } from 'lucide-react'
+import { Wrench, CheckCircle, Calendar, Plus, Search, QrCode, Clock } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 
 const MaintenanceDashboard = () => {

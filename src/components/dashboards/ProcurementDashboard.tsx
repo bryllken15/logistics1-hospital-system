@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { ShoppingCart, Truck, Package, TrendingUp, Plus, Search, QrCode, CheckCircle } from 'lucide-react'
+import { ShoppingCart, Truck, Package, Plus, Search, QrCode, CheckCircle } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
 
 const ProcurementDashboard = () => {

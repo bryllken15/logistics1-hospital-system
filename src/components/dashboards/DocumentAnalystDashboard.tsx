@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { FileText, Upload, CheckCircle, Archive, Search, Filter, Download, Eye } from 'lucide-react'
+import { FileText, Upload, CheckCircle, Archive, Search, Download, Eye } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 
 const DocumentAnalystDashboard = () => {

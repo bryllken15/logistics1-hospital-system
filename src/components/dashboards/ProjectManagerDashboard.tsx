@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { ClipboardList, Users, Truck, TrendingUp, Plus, Calendar, AlertCircle, CheckCircle } from 'lucide-react'
+import { ClipboardList, Users, Truck, TrendingUp, Plus, Calendar, CheckCircle } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 
 const ProjectManagerDashboard = () => {

@@ -1,6 +1,6 @@
 import React from 'react'
 import { motion } from 'framer-motion'
-import { Users, UserCheck, Activity, Shield, TrendingUp, AlertTriangle } from 'lucide-react'
+import { Users, UserCheck, Activity, Shield, TrendingUp } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 
 const AdminDashboard = () => {

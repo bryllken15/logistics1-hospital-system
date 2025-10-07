@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Package, AlertTriangle, Truck, Download, Plus, Search, QrCode } from 'lucide-react'
+import { Package, Truck, Download, Plus, Search, QrCode, AlertTriangle } from 'lucide-react'
 
 const EmployeeDashboard = () => {
   const [rfidCode, setRfidCode] = useState('')
