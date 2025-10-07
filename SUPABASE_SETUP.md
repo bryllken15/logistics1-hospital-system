@@ -12,7 +12,7 @@ This guide will help you set up Supabase for the LOGISTICS 1 Hospital Supply Cha
 4. Choose your organization
 5. Enter project details:
    - **Name**: `logistics1-hospital-system`
-   - **Database Password**: Create a strong password
+   - **Database Password**: BKMmkb15
    - **Region**: Choose closest to your location
 6. Click "Create new project"
 7. Wait for the project to be created (2-3 minutes)
@@ -22,8 +22,8 @@ This guide will help you set up Supabase for the LOGISTICS 1 Hospital Supply Cha
 1. Go to your project dashboard
 2. Navigate to **Settings** → **API**
 3. Copy the following values:
-   - **Project URL** (e.g., `https://your-project.supabase.co`)
-   - **Anon public key** (starts with `eyJ...`)
+   - **Project URL** (e.g., `https://otjdtdnuowhlqriidgfg.supabase.co`)
+   - **Anon public key** (eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im90amR0ZG51b3dobHFyaWlkZ2ZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk4MDc5MjQsImV4cCI6MjA3NTM4MzkyNH0.XMR9R2JTuVRW-3L8BXh0ksj-kbNSRCYHIT_DM1PrQFg)
 
 ### 3. Configure Environment Variables
 
@@ -34,8 +34,8 @@ cp env.example .env.local
 
 2. Update `.env.local` with your Supabase credentials:
 ```env
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your_anon_key_here
+VITE_SUPABASE_URL=https://otjdtdnuowhlqriidgfg.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im90amR0ZG51b3dobHFyaWlkZ2ZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk4MDc5MjQsImV4cCI6MjA3NTM4MzkyNH0.XMR9R2JTuVRW-3L8BXh0ksj-kbNSRCYHIT_DM1PrQFg
 VITE_APP_TITLE=LOGISTICS 1
 VITE_APP_VERSION=1.0.0
 VITE_APP_ENVIRONMENT=development

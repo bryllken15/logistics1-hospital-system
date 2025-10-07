@@ -324,15 +324,26 @@ CREATE POLICY "Maintenance users can manage maintenance logs" ON public.maintena
     )
   );
 
--- Insert sample data
-INSERT INTO public.users (id, email, full_name, role, is_authorized) VALUES
-  ('00000000-0000-0000-0000-000000000001', 'admin@logistics1.com', 'System Administrator', 'admin', true),
-  ('00000000-0000-0000-0000-000000000002', 'manager@logistics1.com', 'Operations Manager', 'manager', true),
-  ('00000000-0000-0000-0000-000000000003', 'employee@logistics1.com', 'Warehouse Employee', 'employee', true),
-  ('00000000-0000-0000-0000-000000000004', 'procurement@logistics1.com', 'Procurement Specialist', 'procurement', true),
-  ('00000000-0000-0000-0000-000000000005', 'project@logistics1.com', 'Project Manager', 'project_manager', true),
-  ('00000000-0000-0000-0000-000000000006', 'maintenance@logistics1.com', 'Maintenance Technician', 'maintenance', true),
-  ('00000000-0000-0000-0000-000000000007', 'document@logistics1.com', 'Document Analyst', 'document_analyst', true);
+-- Create function to handle new user creation
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.users (id, email, full_name, role, is_authorized)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
+    COALESCE(NEW.raw_user_meta_data->>'role', 'employee')::user_role,
+    COALESCE((NEW.raw_user_meta_data->>'is_authorized')::boolean, false)
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create trigger for automatic user creation
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- Insert sample inventory data
 INSERT INTO public.inventory (item_name, rfid_code, quantity, status, location) VALUES
@@ -343,12 +354,12 @@ INSERT INTO public.inventory (item_name, rfid_code, quantity, status, location) 
   ('Syringes', 'RFID005', 300, 'in_stock', 'B-1-01'),
   ('Thermometers', 'RFID006', 8, 'low_stock', 'B-1-02');
 
--- Insert sample purchase orders
-INSERT INTO public.purchase_orders (supplier, items, amount, status, rfid_code, created_by) VALUES
-  ('MedSupply Co.', 15, 45000.00, 'pending', 'RFID001', '00000000-0000-0000-0000-000000000004'),
-  ('HealthTech Ltd.', 8, 32500.00, 'approved', 'RFID002', '00000000-0000-0000-0000-000000000004'),
-  ('MedEquip Inc.', 12, 78000.00, 'delivered', 'RFID003', '00000000-0000-0000-0000-000000000004'),
-  ('PharmaCorp', 6, 23000.00, 'in_transit', 'RFID004', '00000000-0000-0000-0000-000000000004');
+-- Insert sample purchase orders (without user references for now)
+INSERT INTO public.purchase_orders (supplier, items, amount, status, rfid_code) VALUES
+  ('MedSupply Co.', 15, 45000.00, 'pending', 'RFID001'),
+  ('HealthTech Ltd.', 8, 32500.00, 'approved', 'RFID002'),
+  ('MedEquip Inc.', 12, 78000.00, 'delivered', 'RFID003'),
+  ('PharmaCorp', 6, 23000.00, 'in_transit', 'RFID004');
 
 -- Insert sample projects
 INSERT INTO public.projects (name, status, progress, start_date, end_date, budget, spent, staff_count) VALUES
@@ -366,12 +377,12 @@ INSERT INTO public.assets (name, rfid_code, condition, next_maintenance, locatio
   ('CT Scanner', 'RFID005', 'under_repair', '2025-01-25', 'Radiology'),
   ('Dialysis Machine', 'RFID006', 'good', '2025-02-05', 'Nephrology');
 
--- Insert sample documents
-INSERT INTO public.documents (file_name, file_type, file_size, status, uploaded_by) VALUES
-  ('Delivery_Receipt_001.pdf', 'delivery_receipt', 2400000, 'verified', '00000000-0000-0000-0000-000000000003'),
-  ('Purchase_Order_045.pdf', 'purchase_order', 1800000, 'pending_verification', '00000000-0000-0000-0000-000000000004'),
-  ('Invoice_MedSupply_123.pdf', 'invoice', 3100000, 'verified', '00000000-0000-0000-0000-000000000004'),
-  ('Contract_HealthTech_2025.pdf', 'contract', 5200000, 'archived', '00000000-0000-0000-0000-000000000001');
+-- Insert sample documents (without user references for now)
+INSERT INTO public.documents (file_name, file_type, file_size, status) VALUES
+  ('Delivery_Receipt_001.pdf', 'delivery_receipt', 2400000, 'verified'),
+  ('Purchase_Order_045.pdf', 'purchase_order', 1800000, 'pending_verification'),
+  ('Invoice_MedSupply_123.pdf', 'invoice', 3100000, 'verified'),
+  ('Contract_HealthTech_2025.pdf', 'contract', 5200000, 'archived');
 
 -- Insert sample delivery receipts
 INSERT INTO public.delivery_receipts (receipt_number, supplier, amount, items, status) VALUES
@@ -387,10 +398,10 @@ INSERT INTO public.maintenance_logs (asset_id, maintenance_type, technician, cos
   ((SELECT id FROM public.assets WHERE rfid_code = 'RFID003'), 'Preventive', 'Mike Davis', 3200.00, 'completed'),
   ((SELECT id FROM public.assets WHERE rfid_code = 'RFID004'), 'Scheduled', 'Lisa Wilson', 2800.00, 'completed');
 
--- Insert sample system logs
-INSERT INTO public.system_logs (action, user_id, details) VALUES
-  ('User Login', '00000000-0000-0000-0000-000000000001', 'Admin logged in successfully'),
-  ('RFID Scan', '00000000-0000-0000-0000-000000000003', 'Scanned RFID001 - Surgical Masks'),
-  ('Purchase Order Created', '00000000-0000-0000-0000-000000000004', 'Created PO for MedSupply Co.'),
-  ('Asset Maintenance', '00000000-0000-0000-0000-000000000006', 'Scheduled maintenance for MRI Machine'),
-  ('Document Upload', '00000000-0000-0000-0000-000000000007', 'Uploaded delivery receipt DR-2025-001');
+-- Insert sample system logs (without user references for now)
+INSERT INTO public.system_logs (action, details) VALUES
+  ('User Login', 'Admin logged in successfully'),
+  ('RFID Scan', 'Scanned RFID001 - Surgical Masks'),
+  ('Purchase Order Created', 'Created PO for MedSupply Co.'),
+  ('Asset Maintenance', 'Scheduled maintenance for MRI Machine'),
+  ('Document Upload', 'Uploaded delivery receipt DR-2025-001');
