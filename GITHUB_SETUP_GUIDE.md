@@ -54,7 +54,7 @@ git push -u origin main
 
 1. **Clone the repository** to a different folder to test:
    ```bash
-   git clone https://github.com/yourusername/logistics1-hospital-system.git test-clone
+   git clone https://github.com/bryllken15/logistics1-hospital-system.git test-clone
    cd test-clone
    npm install
    npm run dev
