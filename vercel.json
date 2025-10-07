@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "name": "logistics1-hospital-system",
   "builds": [
     {
       "src": "package.json",
@@ -20,11 +19,6 @@
     "VITE_APP_TITLE": "LOGISTICS 1",
     "VITE_APP_VERSION": "1.0.0",
     "VITE_APP_ENVIRONMENT": "production"
-  },
-  "functions": {
-    "src/pages/api/**/*.ts": {
-      "runtime": "nodejs18.x"
-    }
   },
   "headers": [
     {
