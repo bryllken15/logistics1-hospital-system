@@ -1,0 +1,74 @@
+import React, { useState } from 'react'
+import { motion } from 'framer-motion'
+import { useAuth } from '../contexts/AuthContext'
+import Sidebar from '../components/Sidebar'
+import TopNavigation from '../components/TopNavigation'
+import AdminDashboard from '../components/dashboards/AdminDashboard'
+import ManagerDashboard from '../components/dashboards/ManagerDashboard'
+import EmployeeDashboard from '../components/dashboards/EmployeeDashboard'
+import ProcurementDashboard from '../components/dashboards/ProcurementDashboard'
+import ProjectManagerDashboard from '../components/dashboards/ProjectManagerDashboard'
+import MaintenanceDashboard from '../components/dashboards/MaintenanceDashboard'
+import DocumentAnalystDashboard from '../components/dashboards/DocumentAnalystDashboard'
+
+const Dashboard = () => {
+  const { user } = useAuth()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  const renderDashboard = () => {
+    if (!user) return null
+
+    switch (user.role) {
+      case 'admin':
+        return <AdminDashboard />
+      case 'manager':
+        return <ManagerDashboard />
+      case 'employee':
+        return <EmployeeDashboard />
+      case 'procurement':
+        return <ProcurementDashboard />
+      case 'project_manager':
+        return <ProjectManagerDashboard />
+      case 'maintenance':
+        return <MaintenanceDashboard />
+      case 'document_analyst':
+        return <DocumentAnalystDashboard />
+      default:
+        return <AdminDashboard />
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Top Navigation */}
+      <TopNavigation 
+        onMenuClick={() => setSidebarOpen(!sidebarOpen)}
+        sidebarOpen={sidebarOpen}
+      />
+
+      <div className="flex">
+        {/* Sidebar */}
+        <Sidebar 
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+        />
+
+        {/* Main Content */}
+        <motion.main
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5 }}
+          className={`flex-1 transition-all duration-300 ${
+            sidebarOpen ? 'lg:ml-64' : 'lg:ml-16'
+          }`}
+        >
+          <div className="p-6">
+            {renderDashboard()}
+          </div>
+        </motion.main>
+      </div>
+    </div>
+  )
+}
+
+export default Dashboard
