@@ -51,7 +51,7 @@ const MaintenanceDashboard = () => {
     } else if (update.eventType === 'UPDATE') {
       setAssets(prev => prev.map(asset => asset.id === update.new.id ? update.new : asset))
       if (update.new.condition === 'needs_repair') {
-        toast.warning('Asset needs repair')
+        toast.error('Asset needs repair')
       } else if (update.new.condition === 'excellent') {
         toast.success('Asset condition improved')
       }
@@ -82,7 +82,7 @@ const MaintenanceDashboard = () => {
     
     if (update.eventType === 'INSERT') {
       setMaintenanceSchedule(prev => [update.new, ...prev])
-      toast.info('New maintenance scheduled')
+      toast.success('New maintenance scheduled')
     } else if (update.eventType === 'UPDATE') {
       setMaintenanceSchedule(prev => prev.map(schedule => schedule.id === update.new.id ? update.new : schedule))
       if (update.new.status === 'completed') {
@@ -332,7 +332,15 @@ const MaintenanceDashboard = () => {
             <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
             <span className="text-sm text-gray-600">Real-time Active</span>
           </div>
-          <NotificationCenter />
+          <NotificationCenter 
+          notifications={notifications}
+          onClearNotification={(id) => {
+            setNotifications(prev => prev.filter(n => n.id !== id))
+          }}
+          onClearAll={() => {
+            setNotifications([])
+          }}
+        />
         </div>
       </motion.div>
 

@@ -78,7 +78,7 @@ const AdminDashboard = () => {
       setLastUpdate(new Date())
       if (update.eventType === 'INSERT') {
         setNotifications(prev => [update.new, ...prev])
-        toast.info(update.new.title)
+        toast.success(update.new.title)
       }
     }
   })

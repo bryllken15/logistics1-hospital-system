@@ -51,15 +51,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return false
       }
       
-      if (!user.is_authorized) {
+      if (!(user as any).is_authorized) {
         toast.error('Account not authorized. Please contact administrator.')
         setLoading(false)
         return false
       }
       
-      setUser(user)
+      setUser(user as any)
       localStorage.setItem('logistics1_user', JSON.stringify(user))
-      toast.success(`Welcome back, ${user.full_name}!`)
+      toast.success(`Welcome back, ${(user as any).full_name}!`)
       setLoading(false)
       return true
     } catch (error) {

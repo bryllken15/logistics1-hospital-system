@@ -105,10 +105,7 @@ export const inventoryService = {
       
       console.log('Insert result:', insertResult)
       
-      const selectResult = await insertResult.select()
-      console.log('Select result:', selectResult)
-      
-      const { data, error } = selectResult
+      const { data, error } = insertResult
 
       console.log('Supabase response - data:', data)
       console.log('Supabase response - error:', error)

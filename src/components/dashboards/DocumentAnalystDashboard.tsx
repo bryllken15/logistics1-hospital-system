@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { FileText, Upload, CheckCircle, Archive, Search, Download, Eye, X, Plus } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
-import { documentService, systemLogService, documentFileService, deliveryReceiptService, analyticsService } from '../../services/database'
+import { documentService, systemLogService, deliveryReceiptService, analyticsService } from '../../services/database'
 import { useDocumentUpdates, useDeliveryReceiptUpdates } from '../../hooks/useRealtimeUpdates'
 import NotificationCenter from '../NotificationCenter'
 import toast from 'react-hot-toast'
@@ -46,7 +46,7 @@ const DocumentAnalystDashboard = () => {
       if (update.new.status === 'verified') {
         toast.success('Document verified')
       } else if (update.new.status === 'archived') {
-        toast.info('Document archived')
+        toast.success('Document archived')
       }
     } else if (update.eventType === 'DELETE') {
       setDocuments(prev => prev.filter(doc => doc.id !== update.old.id))
@@ -59,7 +59,7 @@ const DocumentAnalystDashboard = () => {
     setLastUpdate(new Date())
     
     if (update.eventType === 'INSERT') {
-      toast.info('New delivery receipt received')
+      toast.success('New delivery receipt received')
     } else if (update.eventType === 'UPDATE') {
       if (update.new.status === 'verified') {
         toast.success('Delivery receipt verified')
@@ -342,7 +342,15 @@ const DocumentAnalystDashboard = () => {
             <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
             <span className="text-sm text-gray-600">Real-time Active</span>
           </div>
-          <NotificationCenter />
+          <NotificationCenter 
+          notifications={notifications}
+          onClearNotification={(id) => {
+            setNotifications(prev => prev.filter(n => n.id !== id))
+          }}
+          onClearAll={() => {
+            setNotifications([])
+          }}
+        />
         </div>
       </motion.div>
 
@@ -720,7 +728,7 @@ const DocumentAnalystDashboard = () => {
                   const docIds = pendingDocs.map(doc => doc.id)
                   handleBulkDocumentAction('verify', docIds)
                 } else {
-                  toast.info('No pending documents to verify')
+                  toast.success('No pending documents to verify')
                 }
               }}
               className="px-3 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600"
@@ -735,7 +743,7 @@ const DocumentAnalystDashboard = () => {
                   const docIds = verifiedDocs.map(doc => doc.id)
                   handleBulkDocumentAction('archive', docIds)
                 } else {
-                  toast.info('No verified documents to archive')
+                  toast.success('No verified documents to archive')
                 }
               }}
               className="px-3 py-2 bg-purple-500 text-white text-sm rounded-lg hover:bg-purple-600"

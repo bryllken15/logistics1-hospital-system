@@ -45,7 +45,7 @@ const EmployeeDashboard = () => {
     setLastUpdate(new Date())
     
     if (update.eventType === 'INSERT') {
-      toast.info('New purchase request received')
+      toast.success('New purchase request received')
     } else if (update.eventType === 'UPDATE') {
       if (update.new.status === 'approved') {
         toast.success('Purchase request approved')
@@ -61,7 +61,7 @@ const EmployeeDashboard = () => {
     setLastUpdate(new Date())
     
     if (update.eventType === 'INSERT') {
-      toast.info('New document uploaded')
+      toast.success('New document uploaded')
     } else if (update.eventType === 'UPDATE') {
       if (update.new.status === 'verified') {
         toast.success('Document verified')
