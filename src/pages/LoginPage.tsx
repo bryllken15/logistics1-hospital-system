@@ -1,22 +1,17 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { motion } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import { User, Lock, Eye, EyeOff } from 'lucide-react'
+import LoginForm from '../components/LoginForm'
 
 const LoginPage = () => {
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const { login, loading } = useAuth()
+  const { login } = useAuth()
   const navigate = useNavigate()
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const success = await login(username, password)
-    if (success) {
-      navigate('/dashboard')
-    }
+  const handleLogin = async (user: any) => {
+    // User is already authenticated by the LoginForm component
+    // Just navigate to dashboard
+    navigate('/dashboard')
   }
 
   return (
@@ -72,64 +67,7 @@ const LoginPage = () => {
           </motion.div>
 
           {/* Login Form */}
-          <motion.form
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.6 }}
-            onSubmit={handleSubmit}
-            className="space-y-6"
-          >
-            <div>
-              <label className="block text-white text-sm font-medium mb-2">
-                Username
-              </label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-white/20 bg-white/10 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all duration-200"
-                  placeholder="Enter your username"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-white text-sm font-medium mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-12 py-3 rounded-xl border border-white/20 bg-white/10 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all duration-200"
-                  placeholder="Enter your password"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
-
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              type="submit"
-              disabled={loading}
-              className="w-full bg-white text-primary font-semibold py-3 px-4 rounded-xl hover:bg-white/90 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Signing In...' : 'Log In'}
-            </motion.button>
-          </motion.form>
+          <LoginForm onLogin={handleLogin} />
 
           {/* Help Link */}
           <motion.div
@@ -141,21 +79,6 @@ const LoginPage = () => {
             <a href="#" className="text-white/80 hover:text-white text-sm transition-colors">
               Need Help?
             </a>
-          </motion.div>
-
-          {/* Demo Credentials */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 1 }}
-            className="mt-8 p-4 bg-white/10 rounded-xl"
-          >
-            <p className="text-white/80 text-xs mb-2">Demo Credentials:</p>
-            <div className="text-white/60 text-xs space-y-1">
-              <div>Admin: admin / admin123</div>
-              <div>Manager: manager1 / manager123</div>
-              <div>Employee: employee1 / employee123</div>
-            </div>
           </motion.div>
         </motion.div>
       </div>

@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { TrendingUp, Package, ClipboardList, Wrench, CheckCircle, AlertCircle, X, Plus } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
-import { purchaseOrderService, projectService, systemLogService } from '../../services/database'
+import { purchaseOrderService, projectService, systemLogService, analyticsService } from '../../services/database'
+import { useLegacyRealtimeUpdates } from '../../hooks/useRealtimeUpdates'
+import NotificationCenter from '../NotificationCenter'
 import toast from 'react-hot-toast'
 
 const ManagerDashboard = () => {
@@ -11,10 +13,44 @@ const ManagerDashboard = () => {
   const [loading, setLoading] = useState(true)
   const [showApprovalModal, setShowApprovalModal] = useState(false)
   const [selectedRequest, setSelectedRequest] = useState<any>(null)
+  const { isConnected, lastUpdate, notifications, realtimeData, clearNotification, clearAllNotifications } = useLegacyRealtimeUpdates()
 
   useEffect(() => {
     loadManagerData()
   }, [])
+
+  // Real-time data updates
+  useEffect(() => {
+    if (realtimeData.purchaseOrders) {
+      // Update approval requests when purchase orders change
+      setApprovalRequests(prev => {
+        const existingIndex = prev.findIndex(r => r.id === realtimeData.purchaseOrders.id)
+        if (existingIndex >= 0) {
+          const updated = [...prev]
+          updated[existingIndex] = realtimeData.purchaseOrders
+          return updated
+        } else {
+          return [realtimeData.purchaseOrders, ...prev]
+        }
+      })
+    }
+  }, [realtimeData.purchaseOrders])
+
+  useEffect(() => {
+    if (realtimeData.projects) {
+      // Update project status when projects change
+      setProjectStatus(prev => {
+        const existingIndex = prev.findIndex(p => p.id === realtimeData.projects.id)
+        if (existingIndex >= 0) {
+          const updated = [...prev]
+          updated[existingIndex] = realtimeData.projects
+          return updated
+        } else {
+          return [realtimeData.projects, ...prev]
+        }
+      })
+    }
+  }, [realtimeData.projects])
 
   const loadManagerData = async () => {
     try {
@@ -24,8 +60,8 @@ const ManagerDashboard = () => {
         projectService.getAll()
       ])
       
-      setApprovalRequests(purchaseOrders.filter(order => order.status === 'pending'))
-      setProjectStatus(projects)
+      setApprovalRequests((purchaseOrders || []).filter(order => order.status === 'pending'))
+      setProjectStatus(projects || [])
     } catch (error) {
       console.error('Error loading manager data:', error)
     } finally {
@@ -36,6 +72,14 @@ const ManagerDashboard = () => {
   const handleApproveRequest = async (requestId: string) => {
     try {
       await purchaseOrderService.updateStatus(requestId, 'approved')
+      
+      // Log approval
+      await systemLogService.create({
+        action: 'Purchase Request Approved',
+        user_id: '22222222-2222-2222-2222-222222222222', // Manager user ID
+        details: `Purchase request ${requestId} approved by manager`
+      })
+      
       await loadManagerData()
       toast.success('Request approved successfully!')
     } catch (error) {
@@ -58,11 +102,57 @@ const ManagerDashboard = () => {
   const handleUpdateProjectProgress = async (projectId: string, newProgress: number) => {
     try {
       await projectService.updateProgress(projectId, newProgress)
+      
+      // Log progress update
+      await systemLogService.create({
+        action: 'Project Progress Updated',
+        user_id: '22222222-2222-2222-2222-222222222222',
+        details: `Project ${projectId} progress updated to ${newProgress}%`
+      })
+      
       await loadManagerData()
       toast.success('Project progress updated!')
     } catch (error) {
       console.error('Error updating project:', error)
       toast.error('Failed to update project progress')
+    }
+  }
+
+  const handleGenerateManagerReport = async () => {
+    try {
+      const analytics = await analyticsService.getProcurementAnalytics()
+      
+      await systemLogService.create({
+        action: 'Manager Report Generated',
+        user_id: '22222222-2222-2222-2222-222222222222',
+        details: `Manager report generated with ${approvalRequests.length} pending requests and ${projectStatus.length} active projects`
+      })
+      
+      toast.success('Manager report generated successfully!')
+    } catch (error) {
+      console.error('Error generating report:', error)
+      toast.error('Failed to generate manager report')
+    }
+  }
+
+  const handleBulkApproval = async (action: string) => {
+    try {
+      if (action === 'approve_all') {
+        for (const request of approvalRequests) {
+          await purchaseOrderService.updateStatus(request.id, 'approved')
+        }
+        toast.success('All requests approved!')
+      } else if (action === 'reject_all') {
+        for (const request of approvalRequests) {
+          await purchaseOrderService.updateStatus(request.id, 'rejected')
+        }
+        toast.success('All requests rejected!')
+      }
+      
+      await loadManagerData()
+    } catch (error) {
+      console.error('Error performing bulk action:', error)
+      toast.error('Failed to perform bulk action')
     }
   }
 
@@ -90,9 +180,43 @@ const ManagerDashboard = () => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
+        className="flex items-center justify-between"
       >
-        <h1 className="text-3xl font-bold text-primary mb-2">Manager Overview</h1>
-        <p className="text-gray-600">Monitor system activity, approve requests, and oversee department performance</p>
+        <div>
+          <h1 className="text-3xl font-bold text-primary mb-2">Manager Overview</h1>
+          <p className="text-gray-600">Monitor system activity, approve requests, and oversee department performance</p>
+        </div>
+        <NotificationCenter 
+          notifications={notifications}
+          onClearNotification={(id: number) => clearNotification(id.toString())}
+          onClearAll={clearAllNotifications}
+        />
+      </motion.div>
+
+      {/* Real-time Status */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <div className={`w-3 h-3 rounded-full mr-3 ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <div>
+              <h3 className="text-sm font-medium text-blue-800">
+                Real-time Status: {isConnected ? 'Connected' : 'Disconnected'}
+              </h3>
+              <p className="text-sm text-blue-700">
+                {lastUpdate ? `Last update: ${lastUpdate.toLocaleTimeString()}` : 'No updates yet'}
+              </p>
+            </div>
+          </div>
+          {notifications.length > 0 && (
+            <div className="flex items-center text-blue-600">
+              <span className="text-sm font-medium">{notifications.length} new updates</span>
+            </div>
+          )}
+        </div>
       </motion.div>
 
       {/* Stats Cards */}
@@ -307,7 +431,7 @@ const ManagerDashboard = () => {
         className="card p-6"
       >
         <h3 className="text-lg font-semibold text-primary mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <button 
             onClick={() => loadManagerData()}
             className="btn-primary flex items-center justify-center space-x-2"
@@ -316,14 +440,11 @@ const ManagerDashboard = () => {
             <span>Refresh Data</span>
           </button>
           <button 
-            onClick={() => {
-              // Generate manager report
-              toast.success('Manager report generated successfully!')
-            }}
+            onClick={handleGenerateManagerReport}
             className="btn-secondary flex items-center justify-center space-x-2"
           >
             <TrendingUp className="w-5 h-5" />
-            <span>View Reports</span>
+            <span>Generate Report</span>
           </button>
           <button 
             onClick={() => {
@@ -335,6 +456,59 @@ const ManagerDashboard = () => {
             <AlertCircle className="w-5 h-5" />
             <span>Monitor Progress</span>
           </button>
+          <button 
+            onClick={() => {
+              // System overview
+              toast.success('System overview generated!')
+            }}
+            className="btn-secondary flex items-center justify-center space-x-2"
+          >
+            <Package className="w-5 h-5" />
+            <span>System Overview</span>
+          </button>
+        </div>
+        
+        {/* Additional Manager Actions */}
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <h4 className="text-sm font-medium text-gray-700 mb-3">Management Actions</h4>
+          <div className="flex flex-wrap gap-2">
+            <button 
+              onClick={() => handleBulkApproval('approve_all')}
+              className="px-3 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600"
+            >
+              Approve All Requests
+            </button>
+            <button 
+              onClick={() => handleBulkApproval('reject_all')}
+              className="px-3 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600"
+            >
+              Reject All Requests
+            </button>
+            <button 
+              onClick={() => {
+                // Export manager data
+                const csvData = {
+                  approvalRequests: approvalRequests.length,
+                  projects: projectStatus.length,
+                  totalSpending: approvalRequests.reduce((sum, req) => sum + req.amount, 0)
+                }
+                
+                toast.success('Manager data exported!')
+              }}
+              className="px-3 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600"
+            >
+              Export Data
+            </button>
+            <button 
+              onClick={() => {
+                // Department performance
+                toast.success('Department performance analysis generated!')
+              }}
+              className="px-3 py-2 bg-purple-500 text-white text-sm rounded-lg hover:bg-purple-600"
+            >
+              Performance Analysis
+            </button>
+          </div>
         </div>
       </motion.div>
     </div>

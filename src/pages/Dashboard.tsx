@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
-import { useRealtimeUpdates } from '../hooks/useRealtimeUpdates'
+import { useLegacyRealtimeUpdates } from '../hooks/useRealtimeUpdates'
 import Sidebar from '../components/Sidebar'
 import TopNavigation from '../components/TopNavigation'
 import AdminDashboard from '../components/dashboards/AdminDashboard'
@@ -22,7 +22,8 @@ const Dashboard = () => {
   const [isMobile, setIsMobile] = useState(false)
   
   // Initialize real-time updates
-  const { isConnected, lastUpdate } = useRealtimeUpdates()
+  const { isConnected, lastUpdate } = useLegacyRealtimeUpdates()
+
 
   useEffect(() => {
     const checkMobile = () => {
@@ -36,7 +37,9 @@ const Dashboard = () => {
   }, [])
 
   const renderDashboard = () => {
-    if (!user) return null
+    if (!user) {
+      return <div className="p-4 text-center">Loading...</div>
+    }
 
     // Show mobile dashboard on mobile devices
     if (isMobile) {
@@ -69,41 +72,58 @@ const Dashboard = () => {
       case 'document_analyst':
         return <DocumentAnalystDashboard />
       default:
-        return <AdminDashboard />
+        return <div className="p-4 text-center text-red-500">Unknown role: {user.role}</div>
     }
   }
 
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Top Navigation */}
-      <TopNavigation 
-        onMenuClick={() => setSidebarOpen(!sidebarOpen)}
-        sidebarOpen={sidebarOpen}
-      />
-
-      <div className="flex">
-        {/* Sidebar */}
-        <Sidebar 
-          isOpen={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
+  // Add error boundary for debugging
+  try {
+    return (
+      <div className="min-h-screen bg-background">
+        {/* Top Navigation */}
+        <TopNavigation 
+          onMenuClick={() => setSidebarOpen(!sidebarOpen)}
+          sidebarOpen={sidebarOpen}
         />
 
-        {/* Main Content */}
-        <motion.main
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5 }}
-          className={`flex-1 transition-all duration-300 ${
-            sidebarOpen ? 'lg:ml-64' : 'lg:ml-16'
-          }`}
-        >
-          <div className="p-6">
-            {renderDashboard()}
-          </div>
-        </motion.main>
+        <div className="flex">
+          {/* Sidebar */}
+          <Sidebar 
+            isOpen={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+          />
+
+          {/* Main Content */}
+          <motion.main
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5 }}
+            className={`flex-1 transition-all duration-300 ${
+              sidebarOpen ? 'lg:ml-64' : 'lg:ml-16'
+            }`}
+          >
+            <div className="p-6">
+              {renderDashboard()}
+            </div>
+          </motion.main>
+        </div>
       </div>
-    </div>
-  )
+    )
+  } catch (error) {
+    console.error('Dashboard render error:', error)
+    return (
+      <div className="min-h-screen bg-red-100 p-8">
+        <h1 className="text-2xl font-bold text-red-800 mb-4">Dashboard Error</h1>
+        <p className="text-red-600 mb-4">There was an error rendering the dashboard:</p>
+        <pre className="bg-red-50 p-4 rounded text-sm overflow-auto">
+          {error.toString()}
+        </pre>
+        <div className="mt-4">
+          <p><strong>User:</strong> {user ? JSON.stringify(user, null, 2) : 'No user'}</p>
+        </div>
+      </div>
+    )
+  }
 }
 
 export default Dashboard

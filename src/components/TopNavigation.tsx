@@ -81,7 +81,7 @@ const TopNavigation = ({ onMenuClick, sidebarOpen }: TopNavigationProps) => {
           <div className="flex items-center space-x-3">
             <div className="text-right hidden sm:block">
               <p className="text-sm font-medium text-gray-900">
-                {user?.fullName}
+                {user?.full_name}
               </p>
               <p className="text-xs text-gray-600">
                 {getRoleDisplayName(user?.role || '')}

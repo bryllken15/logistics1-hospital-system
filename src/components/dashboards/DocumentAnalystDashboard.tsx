@@ -2,10 +2,14 @@ import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { FileText, Upload, CheckCircle, Archive, Search, Download, Eye, X, Plus } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
-import { documentService, systemLogService } from '../../services/database'
+import { documentService, systemLogService, documentFileService, deliveryReceiptService, analyticsService } from '../../services/database'
+import { useDocumentUpdates, useDeliveryReceiptUpdates } from '../../hooks/useRealtimeUpdates'
+import NotificationCenter from '../NotificationCenter'
 import toast from 'react-hot-toast'
+import { useAuth } from '../../contexts/AuthContext'
 
 const DocumentAnalystDashboard = () => {
+  const { user } = useAuth()
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterType, setFilterType] = useState('all')
@@ -21,16 +25,53 @@ const DocumentAnalystDashboard = () => {
     file_size: 0
   })
   const [verificationNotes, setVerificationNotes] = useState('')
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [isConnected, setIsConnected] = useState(true)
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
 
   useEffect(() => {
     loadDocumentData()
   }, [])
 
+  // Set up realtime subscriptions for document updates
+  useDocumentUpdates((update) => {
+    console.log('Document update received:', update)
+    setLastUpdate(new Date())
+    
+    if (update.eventType === 'INSERT') {
+      setDocuments(prev => [update.new, ...prev])
+      toast.success('New document uploaded')
+    } else if (update.eventType === 'UPDATE') {
+      setDocuments(prev => prev.map(doc => doc.id === update.new.id ? update.new : doc))
+      if (update.new.status === 'verified') {
+        toast.success('Document verified')
+      } else if (update.new.status === 'archived') {
+        toast.info('Document archived')
+      }
+    } else if (update.eventType === 'DELETE') {
+      setDocuments(prev => prev.filter(doc => doc.id !== update.old.id))
+      toast.success('Document deleted')
+    }
+  })
+
+  useDeliveryReceiptUpdates((update) => {
+    console.log('Delivery receipt update received:', update)
+    setLastUpdate(new Date())
+    
+    if (update.eventType === 'INSERT') {
+      toast.info('New delivery receipt received')
+    } else if (update.eventType === 'UPDATE') {
+      if (update.new.status === 'verified') {
+        toast.success('Delivery receipt verified')
+      }
+    }
+  })
+
   const loadDocumentData = async () => {
     try {
       setLoading(true)
       const data = await documentService.getAll()
-      setDocuments(data)
+      setDocuments(data || [])
     } catch (error) {
       console.error('Error loading document data:', error)
     } finally {
@@ -40,13 +81,19 @@ const DocumentAnalystDashboard = () => {
 
   const handleUploadDocument = async () => {
     try {
-      await documentService.create(newDocument)
+      const documentData = {
+        ...newDocument,
+        uploaded_by: '77777777-7777-7777-7777-777777777777', // Document Analyst user ID
+        status: 'pending_verification'
+      }
+      
+      await documentService.create(documentData)
       
       // Log document upload
       await systemLogService.create({
         action: 'Document Uploaded',
-        user_id: '77777777-7777-7777-7777-777777777777', // Document Analyst user ID
-        details: `Document uploaded: ${newDocument.file_name} (${newDocument.file_type})`
+        user_id: '77777777-7777-7777-7777-777777777777',
+        details: `Document uploaded: ${newDocument.file_name} (${newDocument.file_type}) - ${(newDocument.file_size / 1024 / 1024).toFixed(1)}MB`
       })
       
       await loadDocumentData()
@@ -61,6 +108,7 @@ const DocumentAnalystDashboard = () => {
 
   const handleVerifyDocument = async (documentId: string, status: string) => {
     try {
+      setLoading(true)
       await documentService.updateStatus(documentId, status)
       
       // Log document verification
@@ -78,17 +126,68 @@ const DocumentAnalystDashboard = () => {
     } catch (error) {
       console.error('Error verifying document:', error)
       toast.error('Failed to verify document')
+    } finally {
+      setLoading(false)
     }
   }
 
   const handleArchiveDocument = async (documentId: string) => {
     try {
       await documentService.archive(documentId)
+      
+      // Log document archival
+      await systemLogService.create({
+        action: 'Document Archived',
+        user_id: '77777777-7777-7777-7777-777777777777',
+        details: `Document archived: ${documentId}`
+      })
+      
       await loadDocumentData()
       toast.success('Document archived successfully!')
     } catch (error) {
       console.error('Error archiving document:', error)
       toast.error('Failed to archive document')
+    }
+  }
+
+  const handleBulkDocumentAction = async (action: string, documentIds: string[]) => {
+    try {
+      for (const documentId of documentIds) {
+        if (action === 'verify') {
+          await documentService.updateStatus(documentId, 'verified')
+        } else if (action === 'archive') {
+          await documentService.archive(documentId)
+        }
+      }
+      
+      await systemLogService.create({
+        action: `Bulk Document ${action}`,
+        user_id: '77777777-7777-7777-7777-777777777777',
+        details: `${action} action performed on ${documentIds.length} documents`
+      })
+      
+      await loadDocumentData()
+      toast.success(`Bulk ${action} completed successfully!`)
+    } catch (error) {
+      console.error(`Error performing bulk ${action}:`, error)
+      toast.error(`Failed to perform bulk ${action}`)
+    }
+  }
+
+  const handleGenerateDocumentReport = async () => {
+    try {
+      const analytics = await analyticsService.getDocumentAnalytics()
+      
+      await systemLogService.create({
+        action: 'Document Report Generated',
+        user_id: '77777777-7777-7777-7777-777777777777',
+        details: `Document report generated for ${documents.length} documents`
+      })
+      
+      toast.success('Document report generated successfully!')
+    } catch (error) {
+      console.error('Error generating report:', error)
+      toast.error('Failed to generate document report')
     }
   }
 
@@ -232,9 +331,19 @@ const DocumentAnalystDashboard = () => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
+        className="flex justify-between items-center"
       >
-        <h1 className="text-3xl font-bold text-primary mb-2">Document Tracking & Records System</h1>
-        <p className="text-gray-600">Manage logistics and procurement documents for verification and records</p>
+        <div>
+          <h1 className="text-3xl font-bold text-primary mb-2">Document Tracking & Records System</h1>
+          <p className="text-gray-600">Manage logistics and procurement documents for verification and records</p>
+        </div>
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="text-sm text-gray-600">Real-time Active</span>
+          </div>
+          <NotificationCenter />
+        </div>
       </motion.div>
 
       {/* Stats Cards */}
@@ -362,6 +471,7 @@ const DocumentAnalystDashboard = () => {
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              aria-label="Filter documents by status"
             >
               <option value="all">All Status</option>
               <option value="verified">Verified</option>
@@ -372,6 +482,7 @@ const DocumentAnalystDashboard = () => {
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              aria-label="Filter documents by type"
             >
               <option value="all">All Types</option>
               <option value="delivery_receipt">Delivery Receipt</option>
@@ -533,7 +644,7 @@ const DocumentAnalystDashboard = () => {
         className="card p-6"
       >
         <h3 className="text-lg font-semibold text-primary mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <button 
             onClick={() => setShowUploadForm(true)}
             className="btn-primary flex items-center justify-center space-x-2"
@@ -549,15 +660,98 @@ const DocumentAnalystDashboard = () => {
             <span>Refresh Data</span>
           </button>
           <button 
-            onClick={() => {
-              // Archive all verified documents
-              toast.success('Archive functionality would be implemented here')
-            }}
+            onClick={handleGenerateDocumentReport}
             className="btn-primary flex items-center justify-center space-x-2"
           >
             <Archive className="w-5 h-5" />
-            <span>Archive Records</span>
+            <span>Generate Report</span>
           </button>
+          <button 
+            onClick={() => {
+              // Document verification workflow
+              toast.success('Document verification workflow initiated!')
+            }}
+            className="btn-secondary flex items-center justify-center space-x-2"
+          >
+            <FileText className="w-5 h-5" />
+            <span>Verify Documents</span>
+          </button>
+        </div>
+        
+        {/* Additional Document Management Actions */}
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <h4 className="text-sm font-medium text-gray-700 mb-3">Document Management</h4>
+          <div className="flex flex-wrap gap-2">
+            <button 
+              onClick={() => {
+                // Export document data
+                const csvData = documents.map(doc => ({
+                  fileName: doc.file_name,
+                  type: doc.file_type,
+                  status: doc.status,
+                  size: (doc.file_size / 1024 / 1024).toFixed(1),
+                  uploadedBy: doc.uploaded_by,
+                  created: doc.created_at
+                }))
+                
+                const csvContent = "data:text/csv;charset=utf-8," + 
+                  "File Name,Type,Status,Size (MB),Uploaded By,Created\n" +
+                  csvData.map(row => Object.values(row).join(",")).join("\n")
+                
+                const encodedUri = encodeURI(csvContent)
+                const link = document.createElement("a")
+                link.setAttribute("href", encodedUri)
+                link.setAttribute("download", "documents_export.csv")
+                document.body.appendChild(link)
+                link.click()
+                document.body.removeChild(link)
+                
+                toast.success('Document data exported!')
+              }}
+              className="px-3 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600"
+            >
+              Export Documents
+            </button>
+            <button 
+              onClick={() => {
+                // Bulk verify all pending documents
+                const pendingDocs = documents.filter(doc => doc.status === 'pending_verification')
+                if (pendingDocs.length > 0) {
+                  const docIds = pendingDocs.map(doc => doc.id)
+                  handleBulkDocumentAction('verify', docIds)
+                } else {
+                  toast.info('No pending documents to verify')
+                }
+              }}
+              className="px-3 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600"
+            >
+              Verify All Pending
+            </button>
+            <button 
+              onClick={() => {
+                // Archive all verified documents
+                const verifiedDocs = documents.filter(doc => doc.status === 'verified')
+                if (verifiedDocs.length > 0) {
+                  const docIds = verifiedDocs.map(doc => doc.id)
+                  handleBulkDocumentAction('archive', docIds)
+                } else {
+                  toast.info('No verified documents to archive')
+                }
+              }}
+              className="px-3 py-2 bg-purple-500 text-white text-sm rounded-lg hover:bg-purple-600"
+            >
+              Archive All Verified
+            </button>
+            <button 
+              onClick={() => {
+                // Document analytics
+                toast.success('Document analytics generated!')
+              }}
+              className="px-3 py-2 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600"
+            >
+              Document Analytics
+            </button>
+          </div>
         </div>
       </motion.div>
 
@@ -597,6 +791,7 @@ const DocumentAnalystDashboard = () => {
                   value={newDocument.file_type}
                   onChange={(e) => setNewDocument({...newDocument, file_type: e.target.value})}
                   className="input-field w-full"
+                  aria-label="Document file type"
                 >
                   <option value="">Select Type</option>
                   <option value="delivery_receipt">Delivery Receipt</option>

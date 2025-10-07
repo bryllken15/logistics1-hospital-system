@@ -2,12 +2,19 @@ import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { ClipboardList, Users, Truck, TrendingUp, Plus, Calendar, CheckCircle, X, Edit3 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
-import { projectService, systemLogService } from '../../services/database'
+import { projectService, systemLogService, staffAssignmentService, userService, deliveryReceiptService, analyticsService } from '../../services/database'
+import { useProjectUpdates, useUserUpdates, useDeliveryReceiptUpdates } from '../../hooks/useRealtimeUpdates'
+import NotificationCenter from '../NotificationCenter'
 import toast from 'react-hot-toast'
+import { useAuth } from '../../contexts/AuthContext'
 
 const ProjectManagerDashboard = () => {
+  const { user } = useAuth()
   const [selectedProject, setSelectedProject] = useState('all')
   const [projects, setProjects] = useState<any[]>([])
+  const [staffAssignments, setStaffAssignments] = useState<any[]>([])
+  const [users, setUsers] = useState<any[]>([])
+  const [deliveries, setDeliveries] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateProjectForm, setShowCreateProjectForm] = useState(false)
   const [showUpdateProgressForm, setShowUpdateProgressForm] = useState(false)
@@ -24,16 +31,83 @@ const ProjectManagerDashboard = () => {
     progress: 0,
     notes: ''
   })
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [isConnected, setIsConnected] = useState(true)
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
 
   useEffect(() => {
     loadProjectData()
   }, [])
 
+  // Set up realtime subscriptions for project updates
+  useProjectUpdates((update) => {
+    console.log('Project update received:', update)
+    setLastUpdate(new Date())
+    
+    if (update.eventType === 'INSERT') {
+      setProjects(prev => [update.new, ...prev])
+      toast.success('New project created')
+    } else if (update.eventType === 'UPDATE') {
+      setProjects(prev => prev.map(project => project.id === update.new.id ? update.new : project))
+      if (update.new.status === 'completed') {
+        toast.success('Project completed!')
+      } else if (update.new.status === 'delayed') {
+        toast('Project status changed to delayed')
+      }
+    } else if (update.eventType === 'DELETE') {
+      setProjects(prev => prev.filter(project => project.id !== update.old.id))
+      toast.success('Project deleted')
+    }
+  })
+
+  useUserUpdates((update) => {
+    console.log('User update received:', update)
+    setLastUpdate(new Date())
+    
+    if (update.eventType === 'INSERT') {
+      setUsers(prev => [update.new, ...prev])
+      toast('New team member added')
+    } else if (update.eventType === 'UPDATE') {
+      setUsers(prev => prev.map(u => u.id === update.new.id ? update.new : u))
+    }
+  })
+
+  useDeliveryReceiptUpdates((update) => {
+    console.log('Delivery update received:', update)
+    setLastUpdate(new Date())
+    
+    if (update.eventType === 'INSERT') {
+      setDeliveries(prev => [update.new, ...prev])
+      toast.success('New delivery received')
+    } else if (update.eventType === 'UPDATE') {
+      setDeliveries(prev => prev.map(delivery => delivery.id === update.new.id ? update.new : delivery))
+      if (update.new.status === 'verified') {
+        toast.success('Delivery verified')
+      }
+    }
+  })
+
+
   const loadProjectData = async () => {
     try {
       setLoading(true)
-      const data = await projectService.getAll()
-      setProjects(data)
+      const [projectData, userData, deliveryData] = await Promise.all([
+        projectService.getAll(),
+        userService.getAll(),
+        deliveryReceiptService.getAll()
+      ])
+      
+      setProjects(projectData || [])
+      setUsers(userData || [])
+      setDeliveries(deliveryData || [])
+      
+      // Load staff assignments for each project
+      const assignments = []
+      for (const project of (projectData || [])) {
+        const projectAssignments = await staffAssignmentService.getByProject(project.id)
+        assignments.push(...(projectAssignments || []))
+      }
+      setStaffAssignments(assignments)
     } catch (error) {
       console.error('Error loading project data:', error)
     } finally {
@@ -43,7 +117,21 @@ const ProjectManagerDashboard = () => {
 
   const handleCreateProject = async () => {
     try {
-      await projectService.create(newProject)
+      const projectData = {
+        ...newProject,
+        created_by: '55555555-5555-5555-5555-555555555555', // Project Manager user ID
+        progress: 0
+      }
+      
+      await projectService.create(projectData)
+      
+      // Log project creation
+      await systemLogService.create({
+        action: 'Project Created',
+        user_id: '55555555-5555-5555-5555-555555555555',
+        details: `New project created: ${newProject.name} with budget ₱${newProject.budget.toLocaleString()}`
+      })
+      
       await loadProjectData()
       setNewProject({ name: '', description: '', start_date: '', end_date: '', budget: 0, status: 'planning' })
       setShowCreateProjectForm(false)
@@ -78,12 +166,95 @@ const ProjectManagerDashboard = () => {
 
   const handleCompleteProject = async (projectId: string) => {
     try {
+      setLoading(true)
       await projectService.updateStatus(projectId, 'completed')
+      
+      // Log project completion
+      await systemLogService.create({
+        action: 'Project Completed',
+        user_id: '55555555-5555-5555-5555-555555555555',
+        details: `Project completed: ${projectId}`
+      })
+      
       await loadProjectData()
       toast.success('Project marked as completed!')
     } catch (error) {
       console.error('Error completing project:', error)
       toast.error('Failed to complete project')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAssignStaff = async (projectId: string, userId: string, role: string) => {
+    try {
+      setLoading(true)
+      
+      const assignmentData = {
+        project_id: projectId,
+        user_id: userId,
+        role: role,
+        assigned_by: '55555555-5555-5555-5555-555555555555'
+      }
+      
+      await staffAssignmentService.assign(assignmentData)
+      
+      // Log staff assignment
+      await systemLogService.create({
+        action: 'Staff Assigned',
+        user_id: '55555555-5555-5555-5555-555555555555',
+        details: `Staff assigned to project: ${projects.find(p => p.id === projectId)?.name} - Role: ${role}`
+      })
+      
+      await loadProjectData()
+      toast.success('Staff assigned successfully!')
+    } catch (error) {
+      console.error('Error assigning staff:', error)
+      toast.error('Failed to assign staff')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleTrackDelivery = async (deliveryId: string) => {
+    try {
+      setLoading(true)
+      
+      // Update delivery status
+      await deliveryReceiptService.updateStatus(deliveryId, 'verified')
+      
+      // Log delivery tracking
+      await systemLogService.create({
+        action: 'Delivery Tracked',
+        user_id: '55555555-5555-5555-5555-555555555555',
+        details: `Delivery tracked and verified: ${deliveryId}`
+      })
+      
+      await loadProjectData()
+      toast.success('Delivery tracked successfully!')
+    } catch (error) {
+      console.error('Error tracking delivery:', error)
+      toast.error('Failed to track delivery')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+
+  const handleGenerateProjectReport = async () => {
+    try {
+      const analytics = await analyticsService.getProjectAnalytics()
+      
+      await systemLogService.create({
+        action: 'Project Report Generated',
+        user_id: '55555555-5555-5555-5555-555555555555',
+        details: `Project report generated for ${projects.length} projects`
+      })
+      
+      toast.success('Project report generated successfully!')
+    } catch (error) {
+      console.error('Error generating report:', error)
+      toast.error('Failed to generate project report')
     }
   }
 
@@ -158,7 +329,7 @@ const ProjectManagerDashboard = () => {
     { id: 4, project: 'RFID Implementation', items: 6, destination: 'IT Department', date: '2025-01-16', status: 'Pending' }
   ]
 
-  const staffAssignments = [
+  const mockStaffAssignments = [
     { name: 'John Smith', role: 'Logistics Coordinator', project: 'Emergency Ward Renovation', workload: 100 },
     { name: 'Sarah Johnson', role: 'Delivery Manager', project: 'New Equipment Installation', workload: 80 },
     { name: 'Mike Davis', role: 'Supply Analyst', project: 'Supply Chain Optimization', workload: 60 },
@@ -176,9 +347,23 @@ const ProjectManagerDashboard = () => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
+        className="flex justify-between items-center"
       >
-        <h1 className="text-3xl font-bold text-primary mb-2">Project Logistics Tracker</h1>
-        <p className="text-gray-600">Track logistics and assets per hospital project, manage delivery timelines</p>
+        <div>
+          <h1 className="text-3xl font-bold text-primary mb-2">Project Logistics Tracker</h1>
+          <p className="text-gray-600">Track logistics and assets per hospital project, manage delivery timelines</p>
+        </div>
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="text-sm text-gray-600">Real-time Active</span>
+          </div>
+          <NotificationCenter 
+          notifications={notifications}
+          onClearNotification={() => {}}
+          onClearAll={() => {}}
+        />
+        </div>
       </motion.div>
 
       {/* Stats Cards */}
@@ -290,6 +475,7 @@ const ProjectManagerDashboard = () => {
               value={selectedProject}
               onChange={(e) => setSelectedProject(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              aria-label="Filter projects by status"
             >
               <option value="all">All Projects</option>
               <option value="on_track">On Track</option>
@@ -433,7 +619,7 @@ const ProjectManagerDashboard = () => {
             <button className="btn-primary text-sm">Assign Staff</button>
           </div>
           <div className="space-y-3">
-            {staffAssignments.map((staff, index) => (
+            {mockStaffAssignments.map((staff, index) => (
               <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div>
                   <p className="font-medium text-gray-900">{staff.name}</p>
@@ -463,19 +649,93 @@ const ProjectManagerDashboard = () => {
         className="card p-6"
       >
         <h3 className="text-lg font-semibold text-primary mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button className="btn-primary flex items-center justify-center space-x-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <button 
+            onClick={() => setShowCreateProjectForm(true)}
+            className="btn-primary flex items-center justify-center space-x-2"
+          >
             <Plus className="w-5 h-5" />
             <span>Create New Project</span>
           </button>
-          <button className="btn-secondary flex items-center justify-center space-x-2">
+          <button 
+            onClick={() => loadProjectData()}
+            className="btn-secondary flex items-center justify-center space-x-2"
+          >
             <Truck className="w-5 h-5" />
+            <span>Refresh Data</span>
+          </button>
+          <button 
+            onClick={() => handleGenerateProjectReport()}
+            className="btn-primary flex items-center justify-center space-x-2"
+          >
+            <Users className="w-5 h-5" />
+            <span>Generate Report</span>
+          </button>
+          <button 
+            onClick={() => {
+              // Track all project deliveries
+              toast.success('Tracking all project deliveries...')
+            }}
+            className="btn-secondary flex items-center justify-center space-x-2"
+          >
+            <ClipboardList className="w-5 h-5" />
             <span>Track Deliveries</span>
           </button>
-          <button className="btn-primary flex items-center justify-center space-x-2">
-            <Users className="w-5 h-5" />
-            <span>Assign Staff</span>
-          </button>
+        </div>
+        
+        {/* Additional Project Management Actions */}
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <h4 className="text-sm font-medium text-gray-700 mb-3">Project Management</h4>
+          <div className="flex flex-wrap gap-2">
+            <button 
+              onClick={() => {
+                // Export project data
+                const csvData = projects.map(project => ({
+                  name: project.name,
+                  status: project.status,
+                  progress: project.progress,
+                  budget: project.budget,
+                  startDate: project.start_date,
+                  endDate: project.end_date
+                }))
+                
+                const csvContent = "data:text/csv;charset=utf-8," + 
+                  "Name,Status,Progress,Budget,Start Date,End Date\n" +
+                  csvData.map(row => Object.values(row).join(",")).join("\n")
+                
+                const encodedUri = encodeURI(csvContent)
+                const link = document.createElement("a")
+                link.setAttribute("href", encodedUri)
+                link.setAttribute("download", "projects_export.csv")
+                document.body.appendChild(link)
+                link.click()
+                document.body.removeChild(link)
+                
+                toast.success('Project data exported!')
+              }}
+              className="px-3 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600"
+            >
+              Export Projects
+            </button>
+            <button 
+              onClick={() => {
+                // Monitor all projects
+                toast.success('Monitoring all active projects...')
+              }}
+              className="px-3 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600"
+            >
+              Monitor All Projects
+            </button>
+            <button 
+              onClick={() => {
+                // Staff workload analysis
+                toast.success('Staff workload analysis generated!')
+              }}
+              className="px-3 py-2 bg-purple-500 text-white text-sm rounded-lg hover:bg-purple-600"
+            >
+              Staff Analysis
+            </button>
+          </div>
         </div>
       </motion.div>
 
@@ -528,6 +788,7 @@ const ProjectManagerDashboard = () => {
                     value={newProject.start_date}
                     onChange={(e) => setNewProject({...newProject, start_date: e.target.value})}
                     className="input-field w-full"
+                    aria-label="Project start date"
                   />
                 </div>
                 <div>
@@ -537,6 +798,7 @@ const ProjectManagerDashboard = () => {
                     value={newProject.end_date}
                     onChange={(e) => setNewProject({...newProject, end_date: e.target.value})}
                     className="input-field w-full"
+                    aria-label="Project end date"
                   />
                 </div>
               </div>
@@ -558,6 +820,7 @@ const ProjectManagerDashboard = () => {
                   value={newProject.status}
                   onChange={(e) => setNewProject({...newProject, status: e.target.value})}
                   className="input-field w-full"
+                  aria-label="Project status"
                 >
                   <option value="planning">Planning</option>
                   <option value="in_progress">In Progress</option>

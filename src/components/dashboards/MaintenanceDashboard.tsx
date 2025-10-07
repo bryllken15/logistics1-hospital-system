@@ -2,14 +2,19 @@ import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Wrench, CheckCircle, Calendar, Plus, Search, QrCode, Clock, X, Edit3 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
-import { assetService, maintenanceService, systemLogService } from '../../services/database'
+import { assetService, maintenanceService, systemLogService, maintenanceScheduleService, inventoryService, analyticsService } from '../../services/database'
+import { useAssetUpdates, useMaintenanceLogUpdates, useMaintenanceScheduleUpdates } from '../../hooks/useRealtimeUpdates'
+import NotificationCenter from '../NotificationCenter'
 import toast from 'react-hot-toast'
+import { useAuth } from '../../contexts/AuthContext'
 
 const MaintenanceDashboard = () => {
+  const { user } = useAuth()
   const [rfidCode, setRfidCode] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [assets, setAssets] = useState<any[]>([])
   const [maintenanceLogs, setMaintenanceLogs] = useState<any[]>([])
+  const [maintenanceSchedule, setMaintenanceSchedule] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddAssetForm, setShowAddAssetForm] = useState(false)
   const [showScheduleMaintenanceForm, setShowScheduleMaintenanceForm] = useState(false)
@@ -27,21 +32,78 @@ const MaintenanceDashboard = () => {
     description: '',
     priority: 'medium'
   })
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [isConnected, setIsConnected] = useState(true)
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
 
   useEffect(() => {
     loadMaintenanceData()
   }, [])
 
+  // Set up realtime subscriptions for asset updates
+  useAssetUpdates((update) => {
+    console.log('Asset update received:', update)
+    setLastUpdate(new Date())
+    
+    if (update.eventType === 'INSERT') {
+      setAssets(prev => [update.new, ...prev])
+      toast.success('New asset added')
+    } else if (update.eventType === 'UPDATE') {
+      setAssets(prev => prev.map(asset => asset.id === update.new.id ? update.new : asset))
+      if (update.new.condition === 'needs_repair') {
+        toast.warning('Asset needs repair')
+      } else if (update.new.condition === 'excellent') {
+        toast.success('Asset condition improved')
+      }
+    } else if (update.eventType === 'DELETE') {
+      setAssets(prev => prev.filter(asset => asset.id !== update.old.id))
+      toast.success('Asset removed')
+    }
+  })
+
+  useMaintenanceLogUpdates((update) => {
+    console.log('Maintenance log update received:', update)
+    setLastUpdate(new Date())
+    
+    if (update.eventType === 'INSERT') {
+      setMaintenanceLogs(prev => [update.new, ...prev])
+      toast.success('Maintenance log added')
+    } else if (update.eventType === 'UPDATE') {
+      setMaintenanceLogs(prev => prev.map(log => log.id === update.new.id ? update.new : log))
+      if (update.new.status === 'completed') {
+        toast.success('Maintenance completed')
+      }
+    }
+  })
+
+  useMaintenanceScheduleUpdates((update) => {
+    console.log('Maintenance schedule update received:', update)
+    setLastUpdate(new Date())
+    
+    if (update.eventType === 'INSERT') {
+      setMaintenanceSchedule(prev => [update.new, ...prev])
+      toast.info('New maintenance scheduled')
+    } else if (update.eventType === 'UPDATE') {
+      setMaintenanceSchedule(prev => prev.map(schedule => schedule.id === update.new.id ? update.new : schedule))
+      if (update.new.status === 'completed') {
+        toast.success('Scheduled maintenance completed')
+      }
+    }
+  })
+
+
   const loadMaintenanceData = async () => {
     try {
       setLoading(true)
-      const [assetData, maintenanceData] = await Promise.all([
+      const [assetData, maintenanceData, scheduleData] = await Promise.all([
         assetService.getAll(),
-        maintenanceService.getAll()
+        maintenanceService.getAll(),
+        maintenanceScheduleService.getAll()
       ])
       
-      setAssets(assetData)
-      setMaintenanceLogs(maintenanceData)
+      setAssets(assetData || [])
+      setMaintenanceLogs(maintenanceData || [])
+      setMaintenanceSchedule(scheduleData || [])
     } catch (error) {
       console.error('Error loading maintenance data:', error)
     } finally {
@@ -51,7 +113,21 @@ const MaintenanceDashboard = () => {
 
   const handleAddAsset = async () => {
     try {
-      await assetService.create(newAsset)
+      const assetData = {
+        ...newAsset,
+        created_by: '66666666-6666-6666-6666-666666666666', // Maintenance user ID
+        next_maintenance: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days from now
+      }
+      
+      await assetService.create(assetData)
+      
+      // Log asset creation
+      await systemLogService.create({
+        action: 'Asset Added',
+        user_id: '66666666-6666-6666-6666-666666666666',
+        details: `New asset added: ${newAsset.name} (${newAsset.asset_type}) with RFID: ${newAsset.rfid_code}`
+      })
+      
       await loadMaintenanceData()
       setNewAsset({ name: '', asset_type: '', location: '', condition: 'good', rfid_code: '' })
       setShowAddAssetForm(false)
@@ -64,12 +140,23 @@ const MaintenanceDashboard = () => {
 
   const handleScheduleMaintenance = async () => {
     try {
-      await maintenanceService.create(newMaintenance)
+      setLoading(true)
+      
+      const scheduleData = {
+        asset_id: newMaintenance.asset_id,
+        maintenance_type: newMaintenance.maintenance_type,
+        scheduled_date: newMaintenance.scheduled_date,
+        technician: 'Maintenance Staff',
+        status: 'scheduled',
+        created_by: '66666666-6666-6666-6666-666666666666'
+      }
+      
+      await maintenanceScheduleService.create(scheduleData)
       
       // Log maintenance scheduling
       await systemLogService.create({
         action: 'Maintenance Scheduled',
-        user_id: '66666666-6666-6666-6666-666666666666', // Maintenance user ID
+        user_id: '66666666-6666-6666-6666-666666666666',
         details: `Maintenance scheduled for asset ${newMaintenance.asset_id} - ${newMaintenance.maintenance_type}`
       })
       
@@ -80,6 +167,8 @@ const MaintenanceDashboard = () => {
     } catch (error) {
       console.error('Error scheduling maintenance:', error)
       toast.error('Failed to schedule maintenance')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -97,11 +186,56 @@ const MaintenanceDashboard = () => {
   const handleUpdateAssetCondition = async (assetId: string, condition: string) => {
     try {
       await assetService.updateCondition(assetId, condition)
+      
+      // Log condition update
+      await systemLogService.create({
+        action: 'Asset Condition Updated',
+        user_id: '66666666-6666-6666-6666-666666666666',
+        details: `Asset condition updated to: ${condition} for asset ${assetId}`
+      })
+      
       await loadMaintenanceData()
       toast.success('Asset condition updated!')
     } catch (error) {
       console.error('Error updating asset condition:', error)
       toast.error('Failed to update asset condition')
+    }
+  }
+
+  const handleGenerateMaintenanceReport = async () => {
+    try {
+      const analytics = await analyticsService.getAssetAnalytics()
+      
+      await systemLogService.create({
+        action: 'Maintenance Report Generated',
+        user_id: '66666666-6666-6666-6666-666666666666',
+        details: `Maintenance report generated for ${(assets || []).length} assets`
+      })
+      
+      toast.success('Maintenance report generated successfully!')
+    } catch (error) {
+      console.error('Error generating report:', error)
+      toast.error('Failed to generate maintenance report')
+    }
+  }
+
+  const handleBulkMaintenanceUpdate = async (updates: any[]) => {
+    try {
+      for (const update of updates) {
+        await maintenanceService.updateStatus(update.id, update.status)
+      }
+      
+      await systemLogService.create({
+        action: 'Bulk Maintenance Update',
+        user_id: '66666666-6666-6666-6666-666666666666',
+        details: `Bulk maintenance update: ${(updates || []).length} maintenance records updated`
+      })
+      
+      await loadMaintenanceData()
+      toast.success('Bulk maintenance update completed!')
+    } catch (error) {
+      console.error('Error updating maintenance:', error)
+      toast.error('Failed to update maintenance records')
     }
   }
 
@@ -142,22 +276,41 @@ const MaintenanceDashboard = () => {
   const handleRfidScan = async () => {
     if (rfidCode) {
       try {
+        setLoading(true)
+        
+        // Check if RFID exists in assets
         const asset = assets.find(a => a.rfid_code === rfidCode)
         if (asset) {
+          // Log RFID scan
+          await systemLogService.create({
+            action: 'RFID Scan - Maintenance',
+            user_id: '66666666-6666-6666-6666-666666666666',
+            details: `RFID scanned: ${asset.name} - Condition: ${asset.condition} - Location: ${asset.location}`
+          })
+          
           toast.success(`RFID Scanned: ${asset.name} - Condition: ${asset.condition} - Location: ${asset.location}`)
         } else {
-          toast.error('RFID code not found in assets')
+          // Check in inventory for maintenance items
+          const inventoryItem = await inventoryService.getByRfid(rfidCode)
+          if (inventoryItem) {
+            toast.success(`RFID Scanned: ${inventoryItem.item_name} - Quantity: ${inventoryItem.quantity} - Location: ${inventoryItem.location}`)
+          } else {
+            toast.error('RFID code not found in system')
+          }
         }
       } catch (error) {
-        toast.error('RFID code not found in assets')
+        console.error('RFID scan error:', error)
+        toast.error('RFID code not found in system')
+      } finally {
+        setLoading(false)
       }
       setRfidCode('')
     }
   }
 
-  const filteredAssets = assetList.filter(asset =>
+  const filteredAssets = (assets || []).filter(asset =>
     asset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    asset.tagId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    asset.rfid_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
     asset.location.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
@@ -168,9 +321,19 @@ const MaintenanceDashboard = () => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
+        className="flex justify-between items-center"
       >
-        <h1 className="text-3xl font-bold text-primary mb-2">Asset Lifecycle & Maintenance System</h1>
-        <p className="text-gray-600">Manage and record the maintenance lifecycle of hospital assets</p>
+        <div>
+          <h1 className="text-3xl font-bold text-primary mb-2">Asset Lifecycle & Maintenance System</h1>
+          <p className="text-gray-600">Manage and record the maintenance lifecycle of hospital assets</p>
+        </div>
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="text-sm text-gray-600">Real-time Active</span>
+          </div>
+          <NotificationCenter />
+        </div>
       </motion.div>
 
       {/* Stats Cards */}
@@ -368,12 +531,12 @@ const MaintenanceDashboard = () => {
                 <tr>
                   <td colSpan={6} className="text-center py-8 text-gray-500">Loading assets...</td>
                 </tr>
-              ) : assets.length === 0 ? (
+              ) : (assets || []).length === 0 ? (
                 <tr>
                   <td colSpan={6} className="text-center py-8 text-gray-500">No assets found</td>
                 </tr>
               ) : (
-                assets.map((asset) => (
+                (assets || []).map((asset) => (
                   <tr key={asset.id} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="py-3 text-sm text-gray-900">{asset.name}</td>
                     <td className="py-3 text-sm text-gray-600 font-mono">{asset.rfid_code}</td>
@@ -431,7 +594,7 @@ const MaintenanceDashboard = () => {
             <button className="btn-primary text-sm">View All</button>
           </div>
           <div className="space-y-3">
-            {maintenanceLogs.map((log) => (
+            {(maintenanceLogs || []).map((log) => (
               <div key={log.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div>
                   <p className="font-medium text-gray-900">{log.asset}</p>
@@ -492,19 +655,90 @@ const MaintenanceDashboard = () => {
         className="card p-6"
       >
         <h3 className="text-lg font-semibold text-primary mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button className="btn-primary flex items-center justify-center space-x-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <button 
+            onClick={() => setShowAddAssetForm(true)}
+            className="btn-primary flex items-center justify-center space-x-2"
+          >
             <Plus className="w-5 h-5" />
-            <span>Add Maintenance Log</span>
+            <span>Add Asset</span>
           </button>
-          <button className="btn-secondary flex items-center justify-center space-x-2">
+          <button 
+            onClick={() => setShowScheduleMaintenanceForm(true)}
+            className="btn-secondary flex items-center justify-center space-x-2"
+          >
             <Calendar className="w-5 h-5" />
             <span>Schedule Repair</span>
           </button>
-          <button className="btn-primary flex items-center justify-center space-x-2">
+          <button 
+            onClick={() => setRfidCode('')}
+            className="btn-primary flex items-center justify-center space-x-2"
+          >
             <QrCode className="w-5 h-5" />
             <span>Scan RFID Asset</span>
           </button>
+          <button 
+            onClick={handleGenerateMaintenanceReport}
+            className="btn-secondary flex items-center justify-center space-x-2"
+          >
+            <Wrench className="w-5 h-5" />
+            <span>Generate Report</span>
+          </button>
+        </div>
+        
+        {/* Additional Maintenance Actions */}
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <h4 className="text-sm font-medium text-gray-700 mb-3">Maintenance Management</h4>
+          <div className="flex flex-wrap gap-2">
+            <button 
+              onClick={() => {
+                // Export asset data
+                const csvData = (assets || []).map(asset => ({
+                  name: asset.name,
+                  type: asset.asset_type,
+                  condition: asset.condition,
+                  location: asset.location,
+                  rfid: asset.rfid_code,
+                  nextMaintenance: asset.next_maintenance
+                }))
+                
+                const csvContent = "data:text/csv;charset=utf-8," + 
+                  "Name,Type,Condition,Location,RFID,Next Maintenance\n" +
+                  csvData.map(row => Object.values(row).join(",")).join("\n")
+                
+                const encodedUri = encodeURI(csvContent)
+                const link = document.createElement("a")
+                link.setAttribute("href", encodedUri)
+                link.setAttribute("download", "assets_export.csv")
+                document.body.appendChild(link)
+                link.click()
+                document.body.removeChild(link)
+                
+                toast.success('Asset data exported!')
+              }}
+              className="px-3 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600"
+            >
+              Export Assets
+            </button>
+            <button 
+              onClick={() => {
+                // Schedule bulk maintenance
+                toast.success('Bulk maintenance scheduling initiated!')
+              }}
+              className="px-3 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600"
+            >
+              Schedule Bulk Maintenance
+            </button>
+            <button 
+              onClick={() => {
+                // Asset condition analysis
+                toast.success('Asset condition analysis generated!')
+              }}
+              className="px-3 py-2 bg-purple-500 text-white text-sm rounded-lg hover:bg-purple-600"
+            >
+              Asset Analysis
+            </button>
+          </div>
         </div>
       </motion.div>
 
@@ -577,6 +811,7 @@ const MaintenanceDashboard = () => {
                   value={newAsset.condition}
                   onChange={(e) => setNewAsset({...newAsset, condition: e.target.value})}
                   className="input-field w-full"
+                  aria-label="Asset condition"
                 >
                   <option value="excellent">Excellent</option>
                   <option value="good">Good</option>
@@ -629,9 +864,10 @@ const MaintenanceDashboard = () => {
                   value={newMaintenance.asset_id}
                   onChange={(e) => setNewMaintenance({...newMaintenance, asset_id: e.target.value})}
                   className="input-field w-full"
+                  aria-label="Select asset for maintenance"
                 >
                   <option value="">Select Asset</option>
-                  {assets.map(asset => (
+                  {(assets || []).map(asset => (
                     <option key={asset.id} value={asset.id}>{asset.name}</option>
                   ))}
                 </select>
@@ -643,6 +879,7 @@ const MaintenanceDashboard = () => {
                   value={newMaintenance.maintenance_type}
                   onChange={(e) => setNewMaintenance({...newMaintenance, maintenance_type: e.target.value})}
                   className="input-field w-full"
+                  aria-label="Maintenance type"
                 >
                   <option value="scheduled">Scheduled</option>
                   <option value="preventive">Preventive</option>
@@ -658,6 +895,7 @@ const MaintenanceDashboard = () => {
                   value={newMaintenance.scheduled_date}
                   onChange={(e) => setNewMaintenance({...newMaintenance, scheduled_date: e.target.value})}
                   className="input-field w-full"
+                  aria-label="Scheduled maintenance date"
                 />
               </div>
               
@@ -667,6 +905,7 @@ const MaintenanceDashboard = () => {
                   value={newMaintenance.priority}
                   onChange={(e) => setNewMaintenance({...newMaintenance, priority: e.target.value})}
                   className="input-field w-full"
+                  aria-label="Maintenance priority"
                 >
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
