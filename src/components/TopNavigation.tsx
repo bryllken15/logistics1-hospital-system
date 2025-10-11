@@ -42,14 +42,6 @@ const TopNavigation = ({ onMenuClick, sidebarOpen, onViewChange }: TopNavigation
       <div className="flex items-center justify-between">
         {/* Left Side */}
         <div className="flex items-center space-x-4">
-          <button
-            onClick={onMenuClick}
-            className="p-2 rounded-lg hover:bg-gray-100 transition-colors lg:hidden"
-            aria-label="Open menu"
-          >
-            <Menu className="w-6 h-6 text-gray-600" />
-          </button>
-          
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
               <span className="text-white font-bold text-sm">L1</span>

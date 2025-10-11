@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { useLegacyRealtimeUpdates } from '../hooks/useRealtimeUpdates'
-import Sidebar from '../components/Sidebar'
 import TopNavigation from '../components/TopNavigation'
 import AdminDashboard from '../components/dashboards/AdminDashboard'
 import ManagerDashboard from '../components/dashboards/ManagerDashboard'
@@ -13,41 +12,78 @@ import MaintenanceDashboard from '../components/dashboards/EnhancedMaintenanceDa
 import DocumentAnalystDashboard from '../components/dashboards/EnhancedDocumentAnalystDashboard'
 import AnalyticsDashboard from '../components/AnalyticsDashboard'
 import HospitalSettings from '../components/HospitalSettings'
-import MobileDashboard from '../components/MobileDashboard'
+import { 
+  Home, 
+  Users, 
+  Package, 
+  ShoppingCart, 
+  ClipboardList, 
+  Wrench, 
+  FileText,
+  BarChart3,
+  Settings
+} from 'lucide-react'
 
 const Dashboard = () => {
   const { user } = useAuth()
-  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [currentView, setCurrentView] = useState('dashboard')
-  const [isMobile, setIsMobile] = useState(false)
   
   // Initialize real-time updates
   const { isConnected, lastUpdate } = useLegacyRealtimeUpdates()
-
-
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768)
-    }
-    
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    
-    return () => window.removeEventListener('resize', checkMobile)
-  }, [])
 
   const handleViewChange = (view: string) => {
     setCurrentView(view)
   }
 
+  const getMenuItems = () => {
+    if (!user) return []
+
+    const baseItems = [
+      { icon: Home, label: 'Dashboard', view: 'dashboard', roles: ['all'] },
+      { icon: BarChart3, label: 'Analytics', view: 'analytics', roles: ['all'] },
+      { icon: Settings, label: 'Settings', view: 'settings', roles: ['admin', 'manager'] }
+    ]
+
+    const roleSpecificItems = {
+      admin: [
+        { icon: Users, label: 'Users', view: 'users', roles: ['admin'] },
+        { icon: BarChart3, label: 'Reports', view: 'reports', roles: ['admin'] }
+      ],
+      manager: [
+        { icon: ClipboardList, label: 'Approvals', view: 'approvals', roles: ['manager'] }
+      ],
+      employee: [
+        { icon: Package, label: 'Warehouse', view: 'warehouse', roles: ['employee'] },
+        { icon: BarChart3, label: 'Inventory', view: 'inventory-reports', roles: ['employee'] }
+      ],
+      procurement: [
+        { icon: ShoppingCart, label: 'Procurement', view: 'procurement', roles: ['procurement'] },
+        { icon: Package, label: 'Orders', view: 'purchase-orders', roles: ['procurement'] },
+        { icon: BarChart3, label: 'Suppliers', view: 'supplier-analytics', roles: ['procurement'] }
+      ],
+      project_manager: [
+        { icon: ClipboardList, label: 'Projects', view: 'project-tracker', roles: ['project_manager'] },
+        { icon: BarChart3, label: 'Reports', view: 'project-reports', roles: ['project_manager'] }
+      ],
+      maintenance: [
+        { icon: Wrench, label: 'Maintenance', view: 'maintenance', roles: ['maintenance'] },
+        { icon: BarChart3, label: 'Reports', view: 'maintenance-reports', roles: ['maintenance'] }
+      ],
+      document_analyst: [
+        { icon: FileText, label: 'Documents', view: 'documents', roles: ['document_analyst'] },
+        { icon: BarChart3, label: 'Reports', view: 'document-reports', roles: ['document_analyst'] }
+      ]
+    }
+
+    const allItems = [...baseItems, ...(roleSpecificItems[user.role] || [])]
+    return allItems.filter(item => 
+      item.roles.includes('all') || item.roles.includes(user.role)
+    )
+  }
+
   const renderDashboard = () => {
     if (!user) {
       return <div className="p-4 text-center">Loading...</div>
-    }
-
-    // Show mobile dashboard on mobile devices
-    if (isMobile) {
-      return <MobileDashboard />
     }
 
     // Handle different views
@@ -141,38 +177,49 @@ const Dashboard = () => {
     return <div className="p-4 text-center text-red-500">Unknown role: {user.role}</div>
   }
 
+  const menuItems = getMenuItems()
+
   // Add error boundary for debugging
   try {
     return (
       <div className="min-h-screen bg-background">
         {/* Top Navigation */}
         <TopNavigation 
-          onMenuClick={() => setSidebarOpen(!sidebarOpen)}
-          sidebarOpen={sidebarOpen}
+          onMenuClick={() => {}} // No longer needed
+          sidebarOpen={false}
           onViewChange={handleViewChange}
         />
 
-        <div className="flex">
-          {/* Sidebar */}
-          <Sidebar 
-            isOpen={sidebarOpen}
-            onClose={() => setSidebarOpen(false)}
-            onViewChange={handleViewChange}
-          />
+        {/* Main Content */}
+        <motion.main
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5 }}
+          className="flex-1 min-h-screen pb-20" // Add bottom padding for bottom nav
+        >
+          <div className="p-4 lg:p-6">
+            {renderDashboard()}
+          </div>
+        </motion.main>
 
-          {/* Main Content */}
-          <motion.main
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5 }}
-            className={`flex-1 transition-all duration-300 min-h-screen ${
-              sidebarOpen ? 'lg:ml-64' : 'lg:ml-16'
-            }`}
-          >
-            <div className="p-4 lg:p-6">
-              {renderDashboard()}
-            </div>
-          </motion.main>
+        {/* Bottom Navigation */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2 z-50">
+          <div className="flex justify-around">
+            {menuItems.slice(0, 5).map((item) => (
+              <button
+                key={item.view}
+                onClick={() => handleViewChange(item.view)}
+                className={`flex flex-col items-center space-y-1 p-2 rounded-lg transition-colors ${
+                  currentView === item.view
+                    ? 'text-primary'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <item.icon className="w-5 h-5" />
+                <span className="text-xs">{item.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     )
