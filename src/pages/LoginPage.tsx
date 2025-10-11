@@ -21,9 +21,9 @@ const LoginPage = () => {
         {/* Background Image */}
         <div 
           className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-          style={{
-            backgroundImage: `url('/Images/Logistic1Background.png')`
-          }}
+            style={{
+              backgroundImage: `url('/Logistic1Background.png')`
+            }}
         />
         
         {/* Dark Blue Semi-Transparent Overlay */}
@@ -99,7 +99,7 @@ const LoginPage = () => {
           >
              <div className="w-56 h-56 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-2xl overflow-hidden ring-4 ring-white/20">
               <img 
-                src="/Images/Logistcs1Logo.png" 
+                src="/Logistcs1Logo.png" 
                 alt="Logistics 1 Logo" 
                 className="w-full h-full object-contain p-2"
                 onError={(e) => {

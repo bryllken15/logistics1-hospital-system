@@ -44,7 +44,7 @@ const LoadingScreen = () => {
           >
             <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-2xl overflow-hidden ring-8 ring-white/20">
               <img 
-                src="/Images/Logistcs1Logo.png" 
+                src="/Logistcs1Logo.png" 
                 alt="Logistics 1 Logo" 
                 className="w-full h-full object-contain p-2"
                 onError={(e) => {
