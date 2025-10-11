@@ -7,9 +7,10 @@ import { NotificationBell } from './NotificationBell'
 interface TopNavigationProps {
   onMenuClick: () => void
   sidebarOpen: boolean
+  onViewChange?: (view: string) => void
 }
 
-const TopNavigation = ({ onMenuClick, sidebarOpen }: TopNavigationProps) => {
+const TopNavigation = ({ onMenuClick, sidebarOpen, onViewChange }: TopNavigationProps) => {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
 
@@ -36,7 +37,7 @@ const TopNavigation = ({ onMenuClick, sidebarOpen }: TopNavigationProps) => {
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="bg-white shadow-sm border-b border-gray-200 px-6 py-4"
+      className="bg-white shadow-sm border-b border-gray-200 px-4 py-4 lg:px-6"
     >
       <div className="flex items-center justify-between">
         {/* Left Side */}
@@ -44,6 +45,7 @@ const TopNavigation = ({ onMenuClick, sidebarOpen }: TopNavigationProps) => {
           <button
             onClick={onMenuClick}
             className="p-2 rounded-lg hover:bg-gray-100 transition-colors lg:hidden"
+            aria-label="Open menu"
           >
             <Menu className="w-6 h-6 text-gray-600" />
           </button>
