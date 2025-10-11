@@ -135,14 +135,20 @@ CREATE TABLE public.purchase_orders (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Purchase Requests table
+-- Purchase Requests table (Enhanced for approval workflow)
 CREATE TABLE public.purchase_requests (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   request_number TEXT UNIQUE NOT NULL,
-  item_name TEXT NOT NULL,
-  quantity INTEGER NOT NULL,
-  estimated_cost DECIMAL(10,2),
+  title TEXT NOT NULL,
+  description TEXT,
+  item_name TEXT, -- Keep for backward compatibility
+  quantity INTEGER, -- Keep for backward compatibility
+  total_amount DECIMAL(15,2) NOT NULL,
+  estimated_cost DECIMAL(10,2), -- Keep for backward compatibility
   status request_status NOT NULL DEFAULT 'pending',
+  priority VARCHAR(20) DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
+  requested_date DATE DEFAULT CURRENT_DATE,
+  required_date DATE NOT NULL,
   requested_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
   approved_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -582,10 +588,10 @@ INSERT INTO public.purchase_orders (supplier, items, amount, status, rfid_code, 
   ('PharmaCorp', 6, 23000.00, 'in_transit', 'RFID004', (SELECT id FROM public.users WHERE username = 'procurement'));
 
 -- Insert sample purchase requests
-INSERT INTO public.purchase_requests (request_number, item_name, quantity, estimated_cost, status, requested_by) VALUES
-  ('PR-001', 'Medical Supplies', 50, 15000.00, 'pending', (SELECT id FROM public.users WHERE username = 'employee')),
-  ('PR-002', 'Equipment Parts', 25, 25000.00, 'approved', (SELECT id FROM public.users WHERE username = 'manager')),
-  ('PR-003', 'Safety Equipment', 100, 8000.00, 'pending', (SELECT id FROM public.users WHERE username = 'employee'));
+INSERT INTO public.purchase_requests (request_number, title, description, item_name, quantity, total_amount, estimated_cost, status, priority, required_date, requested_by) VALUES
+  ('PR-001', 'Medical Supplies Request', 'Need medical supplies for emergency ward', 'Medical Supplies', 50, 15000.00, 15000.00, 'pending', 'high', '2024-12-15', (SELECT id FROM public.users WHERE username = 'employee')),
+  ('PR-002', 'Equipment Parts Order', 'Replacement parts for MRI machine', 'Equipment Parts', 25, 25000.00, 25000.00, 'approved', 'medium', '2024-12-20', (SELECT id FROM public.users WHERE username = 'manager')),
+  ('PR-003', 'Safety Equipment Purchase', 'Safety equipment for all departments', 'Safety Equipment', 100, 8000.00, 8000.00, 'pending', 'medium', '2024-12-25', (SELECT id FROM public.users WHERE username = 'employee'));
 
 -- Insert sample projects
 INSERT INTO public.projects (name, status, progress, start_date, end_date, budget, spent, staff_count) VALUES

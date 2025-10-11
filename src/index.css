@@ -1,3 +1,6 @@
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,24 +11,94 @@
   }
   
   body {
-    @apply bg-gray-50 text-gray-900 font-sans;
+    @apply bg-background text-textPrimary font-sans antialiased;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Remove focus outline for mouse users */
+  :focus:not(:focus-visible) {
+    outline: none;
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 hover:shadow-lg;
+    @apply bg-primary hover:bg-primary/90 text-white font-medium py-2.5 px-6 rounded-2xl transition-all duration-300 hover:shadow-lg hover:scale-105 active:scale-95;
   }
   
   .btn-secondary {
-    @apply bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 hover:shadow-lg;
+    @apply bg-secondary hover:bg-secondary/90 text-white font-medium py-2.5 px-6 rounded-2xl transition-all duration-300 hover:shadow-lg hover:scale-105 active:scale-95;
+  }
+
+  .btn-accent {
+    @apply bg-accent hover:bg-accent/90 text-white font-medium py-2.5 px-6 rounded-2xl transition-all duration-300 hover:shadow-lg hover:scale-105 active:scale-95;
   }
   
   .card {
-    @apply bg-white rounded-2xl shadow-md hover:shadow-lg transition-all duration-200 border border-gray-200;
+    @apply bg-white rounded-2xl shadow-soft hover:shadow-soft-lg transition-all duration-300 border border-gray-200;
   }
   
   .input-field {
-    @apply w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200;
+    @apply w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-200 bg-white;
+  }
+
+  /* Custom scrollbar */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-gray-100 rounded-full;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-full hover:bg-gray-400;
+  }
+
+  /* Loading animations */
+  .spinner {
+    border: 3px solid rgba(0, 0, 0, 0.1);
+    border-left-color: theme('colors.primary');
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+}
+
+@layer utilities {
+  /* Text shadow utilities */
+  .text-shadow-sm {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+
+  .text-shadow {
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .text-shadow-lg {
+    text-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .text-shadow-blue {
+    text-shadow: 0 2px 8px rgba(11, 96, 176, 0.5);
+  }
+
+  /* Smooth transitions for all interactive elements */
+  .transition-smooth {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 }

@@ -368,3 +368,16 @@ export const useMaintenanceLogUpdates = (callback: (update: RealtimeUpdate) => v
 export const useMaintenanceScheduleUpdates = (callback: (update: RealtimeUpdate) => void) => {
   return useRealtimeUpdates('maintenance_schedule', callback)
 }
+
+// Approval workflow hooks
+export const useInventoryApprovalUpdates = (callback: (update: RealtimeUpdate) => void) => {
+  return useRealtimeUpdates('inventory_approvals', callback)
+}
+
+export const useProcurementApprovalUpdates = (callback: (update: RealtimeUpdate) => void) => {
+  return useRealtimeUpdates('procurement_approvals', callback)
+}
+
+export const useApprovalNotificationUpdates = (callback: (update: RealtimeUpdate) => void) => {
+  return useRealtimeUpdates('notifications', callback)
+}

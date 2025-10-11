@@ -1,516 +1,803 @@
 import React, { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
-import { TrendingUp, Package, ClipboardList, Wrench, CheckCircle, AlertCircle, X, Plus } from 'lucide-react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
-import { purchaseOrderService, projectService, systemLogService, analyticsService } from '../../services/database'
-import { useLegacyRealtimeUpdates } from '../../hooks/useRealtimeUpdates'
-import NotificationCenter from '../NotificationCenter'
+import { 
+  CheckCircle, 
+  XCircle, 
+  Clock, 
+  AlertTriangle,
+  Bell,
+  TrendingUp,
+  Users,
+  FileText,
+  DollarSign,
+  Calendar,
+  Filter,
+  Search
+} from 'lucide-react'
+import { approvalService } from '../../services/approvalService'
+import { procurementApprovalService, inventoryService, notificationService } from '../../services/database'
+import { useRealtimeSubscriptions } from '../../services/realtimeService'
 import toast from 'react-hot-toast'
 
+interface PendingApproval {
+  approval_id: string
+  request_id: string
+  request_title: string
+  request_description: string
+  total_amount: number
+  requested_by_name: string
+  requested_date: string
+  required_date: string
+  priority: string
+  approval_status: string
+  created_at: string
+}
+
 const ManagerDashboard = () => {
-  const [approvalRequests, setApprovalRequests] = useState<any[]>([])
-  const [projectStatus, setProjectStatus] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState('approvals')
+  const [loading, setLoading] = useState(false)
+  const [pendingApprovals, setPendingApprovals] = useState<PendingApproval[]>([])
+  const [procurementApprovals, setProcurementApprovals] = useState<any[]>([])
+  const [inventoryApprovals, setInventoryApprovals] = useState<any[]>([])
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [stats, setStats] = useState({
+    pendingApprovals: 0,
+    totalRequests: 0,
+    approvedRequests: 0,
+    rejectedRequests: 0
+  })
+  const [selectedApproval, setSelectedApproval] = useState<PendingApproval | null>(null)
   const [showApprovalModal, setShowApprovalModal] = useState(false)
-  const [selectedRequest, setSelectedRequest] = useState<any>(null)
-  const { isConnected, lastUpdate, notifications, realtimeData, clearNotification, clearAllNotifications } = useLegacyRealtimeUpdates()
+  const [approvalAction, setApprovalAction] = useState<'approve' | 'reject'>('approve')
+  const [approvalComments, setApprovalComments] = useState('')
+
+  // Get current user from context
+  const currentUser = {
+    id: '22222222-2222-2222-2222-222222222222', // Manager ID
+    name: 'Jane Manager',
+    role: 'manager'
+  }
+
+  // Real-time subscriptions
+  const { notifications: realtimeNotifications, approvals: realtimeApprovals } = useRealtimeSubscriptions(currentUser.id)
 
   useEffect(() => {
-    loadManagerData()
+    console.log('🔍 MANAGER DASHBOARD: useEffect called - loading dashboard data')
+    loadDashboardData()
   }, [])
 
-  // Real-time data updates
   useEffect(() => {
-    if (realtimeData.purchaseOrders) {
-      // Update approval requests when purchase orders change
-      setApprovalRequests(prev => {
-        const existingIndex = prev.findIndex(r => r.id === realtimeData.purchaseOrders.id)
-        if (existingIndex >= 0) {
-          const updated = [...prev]
-          updated[existingIndex] = realtimeData.purchaseOrders
-          return updated
-        } else {
-          return [realtimeData.purchaseOrders, ...prev]
-        }
-      })
+    if (realtimeNotifications?.notifications) {
+      setNotifications(realtimeNotifications.notifications)
     }
-  }, [realtimeData.purchaseOrders])
+  }, [realtimeNotifications])
 
   useEffect(() => {
-    if (realtimeData.projects) {
-      // Update project status when projects change
-      setProjectStatus(prev => {
-        const existingIndex = prev.findIndex(p => p.id === realtimeData.projects.id)
-        if (existingIndex >= 0) {
-          const updated = [...prev]
-          updated[existingIndex] = realtimeData.projects
-          return updated
-        } else {
-          return [realtimeData.projects, ...prev]
-        }
-      })
+    if (realtimeApprovals?.approvals && realtimeApprovals.approvals.length > 0) {
+      console.log('🔍 MANAGER DASHBOARD: Real-time approvals received:', realtimeApprovals.approvals.length)
+      setPendingApprovals(realtimeApprovals.approvals)
+    } else {
+      console.log('🔍 MANAGER DASHBOARD: No real-time approvals or empty data, keeping existing data')
     }
-  }, [realtimeData.projects])
+  }, [realtimeApprovals])
 
-  const loadManagerData = async () => {
+  const loadDashboardData = async () => {
     try {
+      console.log('🔍 MANAGER DASHBOARD: loadDashboardData called')
       setLoading(true)
-      const [purchaseOrders, projects] = await Promise.all([
-        purchaseOrderService.getAll(),
-        projectService.getAll()
-      ])
       
-      setApprovalRequests((purchaseOrders || []).filter(order => order.status === 'pending'))
-      setProjectStatus(projects || [])
+      // Load pending purchase request approvals
+      console.log('🔍 MANAGER DASHBOARD: Loading pending approvals...')
+      console.log('   Current user ID:', currentUser.id)
+      console.log('   Current user role:', currentUser.role)
+      
+      const approvals = await approvalService.getPendingApprovals(currentUser.id, currentUser.role)
+      console.log('🔍 MANAGER DASHBOARD: Pending approvals loaded:', approvals?.length || 0)
+      console.log('🔍 MANAGER DASHBOARD: Pending approvals data:', approvals)
+      
+      if (approvals && approvals.length > 0) {
+        console.log('✅ MANAGER DASHBOARD: Data received successfully!')
+        console.log('   First approval:', approvals[0])
+      } else {
+        console.log('❌ MANAGER DASHBOARD: No data received!')
+        console.log('   This is why the table shows "No pending purchase requests"')
+      }
+      
+      setPendingApprovals(approvals)
+      console.log('🔍 MANAGER DASHBOARD: Pending approvals state set')
+
+      // Load procurement approvals (only ones that need manager approval)
+      console.log('🔍 MANAGER DASHBOARD: Loading procurement approvals...')
+      const procurementApprovals = await procurementApprovalService.getPendingManagerApprovals()
+      console.log('🔍 MANAGER DASHBOARD DEBUG:')
+      console.log('   Procurement approvals received:', procurementApprovals?.length || 0)
+      console.log('   Procurement approvals data:', procurementApprovals)
+      console.log('🔍 MANAGER DASHBOARD: Setting procurement approvals state...')
+      setProcurementApprovals(procurementApprovals)
+      console.log('🔍 MANAGER DASHBOARD: Procurement approvals state set')
+
+      // Load inventory approvals
+      const inventoryApprovals = await inventoryService.getPendingApprovals()
+      setInventoryApprovals(inventoryApprovals)
+
+      // Load notifications
+      const notifs = await notificationService.getUserNotifications(currentUser.id)
+      setNotifications(notifs || [])
+
+      // Load stats
+      const statsData = await approvalService.getApprovalStats(currentUser.id, currentUser.role)
+      setStats(statsData)
+
     } catch (error) {
-      console.error('Error loading manager data:', error)
+      console.error('Error loading dashboard data:', error)
+      toast.error('Failed to load dashboard data')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleApproveRequest = async (requestId: string) => {
-    try {
-      await purchaseOrderService.updateStatus(requestId, 'approved')
-      
-      // Log approval
-      await systemLogService.create({
-        action: 'Purchase Request Approved',
-        user_id: '22222222-2222-2222-2222-222222222222', // Manager user ID
-        details: `Purchase request ${requestId} approved by manager`
-      })
-      
-      await loadManagerData()
-      toast.success('Request approved successfully!')
-    } catch (error) {
-      console.error('Error approving request:', error)
-      toast.error('Failed to approve request')
-    }
-  }
+  const handleApprovalAction = async (action: 'approve' | 'reject') => {
+    if (!selectedApproval) return
 
-  const handleRejectRequest = async (requestId: string) => {
     try {
-      await purchaseOrderService.updateStatus(requestId, 'rejected')
-      await loadManagerData()
-      toast.success('Request rejected')
-    } catch (error) {
-      console.error('Error rejecting request:', error)
-      toast.error('Failed to reject request')
-    }
-  }
-
-  const handleUpdateProjectProgress = async (projectId: string, newProgress: number) => {
-    try {
-      await projectService.updateProgress(projectId, newProgress)
+      setLoading(true)
       
-      // Log progress update
-      await systemLogService.create({
-        action: 'Project Progress Updated',
-        user_id: '22222222-2222-2222-2222-222222222222',
-        details: `Project ${projectId} progress updated to ${newProgress}%`
-      })
-      
-      await loadManagerData()
-      toast.success('Project progress updated!')
-    } catch (error) {
-      console.error('Error updating project:', error)
-      toast.error('Failed to update project progress')
-    }
-  }
-
-  const handleGenerateManagerReport = async () => {
-    try {
-      const analytics = await analyticsService.getProcurementAnalytics()
-      
-      await systemLogService.create({
-        action: 'Manager Report Generated',
-        user_id: '22222222-2222-2222-2222-222222222222',
-        details: `Manager report generated with ${approvalRequests.length} pending requests and ${projectStatus.length} active projects`
-      })
-      
-      toast.success('Manager report generated successfully!')
-    } catch (error) {
-      console.error('Error generating report:', error)
-      toast.error('Failed to generate manager report')
-    }
-  }
-
-  const handleBulkApproval = async (action: string) => {
-    try {
-      if (action === 'approve_all') {
-        for (const request of approvalRequests) {
-          await purchaseOrderService.updateStatus(request.id, 'approved')
-        }
-        toast.success('All requests approved!')
-      } else if (action === 'reject_all') {
-        for (const request of approvalRequests) {
-          await purchaseOrderService.updateStatus(request.id, 'rejected')
-        }
-        toast.success('All requests rejected!')
+      if (action === 'approve') {
+        await approvalService.approvePurchaseRequest(
+          selectedApproval.request_id,
+          currentUser.id,
+          approvalComments
+        )
+        toast.success('Request approved successfully!')
+      } else {
+        await approvalService.rejectPurchaseRequest(
+          selectedApproval.request_id,
+          currentUser.id,
+          approvalComments
+        )
+        toast.success('Request rejected')
       }
-      
-      await loadManagerData()
+
+      setShowApprovalModal(false)
+      setSelectedApproval(null)
+      setApprovalComments('')
+      loadDashboardData()
     } catch (error) {
-      console.error('Error performing bulk action:', error)
-      toast.error('Failed to perform bulk action')
+      console.error('Error processing approval:', error)
+      toast.error(`Failed to ${action} request`)
+    } finally {
+      setLoading(false)
     }
   }
 
-  // Mock data for charts (can be replaced with real analytics later)
-  const monthlyTrends = [
-    { month: 'Jan', procurement: 45, warehouse: 38, projects: 12 },
-    { month: 'Feb', procurement: 52, warehouse: 42, projects: 15 },
-    { month: 'Mar', procurement: 48, warehouse: 35, projects: 18 },
-    { month: 'Apr', procurement: 61, warehouse: 48, projects: 22 },
-    { month: 'May', procurement: 55, warehouse: 41, projects: 19 },
-    { month: 'Jun', procurement: 67, warehouse: 52, projects: 25 }
-  ]
+  const openApprovalModal = (approval: PendingApproval, action: 'approve' | 'reject') => {
+    setSelectedApproval(approval)
+    setApprovalAction(action)
+    setApprovalComments('')
+    setShowApprovalModal(true)
+  }
 
-  const stockLevels = [
-    { category: 'Medical Supplies', current: 85, optimal: 90, low: 20 },
-    { category: 'Equipment', current: 72, optimal: 80, low: 15 },
-    { category: 'Medications', current: 95, optimal: 95, low: 10 },
-    { category: 'Emergency Items', current: 60, optimal: 85, low: 25 }
-  ]
+  const handleProcurementApproval = async (approvalId: string, action: 'approve' | 'reject') => {
+    try {
+      setLoading(true)
+      
+      if (action === 'approve') {
+        await procurementApprovalService.approve(approvalId, currentUser.id, 'manager')
+        toast.success('Procurement request approved!')
+      } else {
+        await procurementApprovalService.reject(approvalId, currentUser.id, 'manager')
+        toast.success('Procurement request rejected!')
+      }
+
+      loadDashboardData()
+    } catch (error) {
+      console.error('Error processing procurement approval:', error)
+      toast.error(`Failed to ${action} procurement request`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleInventoryApproval = async (approvalId: string, action: 'approve' | 'reject') => {
+    try {
+      setLoading(true)
+      
+      if (action === 'approve') {
+        await inventoryService.approve(approvalId, currentUser.id, 'manager')
+        toast.success('Inventory request approved!')
+      } else {
+        await inventoryService.reject(approvalId, currentUser.id, 'manager')
+        toast.success('Inventory request rejected!')
+      }
+
+      loadDashboardData()
+    } catch (error) {
+      console.error('Error processing inventory approval:', error)
+      toast.error(`Failed to ${action} inventory request`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'urgent':
+        return 'bg-red-100 text-red-800'
+      case 'high':
+        return 'bg-orange-100 text-orange-800'
+      case 'medium':
+        return 'bg-yellow-100 text-yellow-800'
+      case 'low':
+        return 'bg-green-100 text-green-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const getPriorityIcon = (priority: string) => {
+    switch (priority) {
+      case 'urgent':
+        return <AlertTriangle className="w-4 h-4 text-red-600" />
+      case 'high':
+        return <AlertTriangle className="w-4 h-4 text-orange-600" />
+      case 'medium':
+        return <Clock className="w-4 h-4 text-yellow-600" />
+      case 'low':
+        return <CheckCircle className="w-4 h-4 text-green-600" />
+      default:
+        return <Clock className="w-4 h-4 text-gray-600" />
+    }
+  }
+
+  console.log('🔍 MANAGER DASHBOARD: Component rendering')
+  console.log('   Loading:', loading)
+  console.log('   Pending approvals length:', pendingApprovals.length)
+  console.log('   Procurement approvals length:', procurementApprovals.length)
+  console.log('   Active tab:', activeTab)
+  console.log('   Pending approvals data:', pendingApprovals)
+
+  if (loading && pendingApprovals.length === 0) {
+    console.log('🔍 MANAGER DASHBOARD: Showing loading spinner')
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 bg-gray-50 min-h-screen">
       {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="flex items-center justify-between"
-      >
-        <div>
-          <h1 className="text-3xl font-bold text-primary mb-2">Manager Overview</h1>
-          <p className="text-gray-600">Monitor system activity, approve requests, and oversee department performance</p>
-        </div>
-        <NotificationCenter 
-          notifications={notifications}
-          onClearNotification={(id: number) => clearNotification(id.toString())}
-          onClearAll={clearAllNotifications}
-        />
-      </motion.div>
-
-      {/* Real-time Status */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6"
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <div className={`w-3 h-3 rounded-full mr-3 ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            <div>
-              <h3 className="text-sm font-medium text-blue-800">
-                Real-time Status: {isConnected ? 'Connected' : 'Disconnected'}
-              </h3>
-              <p className="text-sm text-blue-700">
-                {lastUpdate ? `Last update: ${lastUpdate.toLocaleTimeString()}` : 'No updates yet'}
-              </p>
-            </div>
-          </div>
-          {notifications.length > 0 && (
-            <div className="flex items-center text-blue-600">
-              <span className="text-sm font-medium">{notifications.length} new updates</span>
-            </div>
-          )}
-        </div>
-      </motion.div>
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Manager Dashboard</h1>
+        <p className="text-gray-600">Review and approve purchase requests</p>
+      </div>
 
       {/* Stats Cards */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.1 }}
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
-      >
-        <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Procurement Requests</p>
-              <p className="text-2xl font-bold text-primary">24</p>
-              <p className="text-xs text-green-600">+12% from last month</p>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="bg-white p-6 rounded-lg shadow">
+          <div className="flex items-center">
+            <Clock className="w-8 h-8 text-yellow-600" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Pending Approvals</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.pendingApprovals}</p>
             </div>
-            <TrendingUp className="w-8 h-8 text-primary" />
           </div>
         </div>
 
-        <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Warehouse Stock</p>
-              <p className="text-2xl font-bold text-secondary">₱2.4M</p>
-              <p className="text-xs text-green-600">+8% from last month</p>
+        <div className="bg-white p-6 rounded-lg shadow">
+          <div className="flex items-center">
+            <FileText className="w-8 h-8 text-blue-600" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Total Requests</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.totalRequests}</p>
             </div>
-            <Package className="w-8 h-8 text-secondary" />
           </div>
         </div>
 
-        <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Ongoing Projects</p>
-              <p className="text-2xl font-bold text-accent">4</p>
-              <p className="text-xs text-orange-600">2 on track, 1 delayed</p>
+        <div className="bg-white p-6 rounded-lg shadow">
+          <div className="flex items-center">
+            <CheckCircle className="w-8 h-8 text-green-600" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Approved</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.approvedRequests}</p>
             </div>
-            <ClipboardList className="w-8 h-8 text-accent" />
           </div>
         </div>
 
-        <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Assets Under Maintenance</p>
-              <p className="text-2xl font-bold text-orange-500">8</p>
-              <p className="text-xs text-orange-600">3 critical</p>
+        <div className="bg-white p-6 rounded-lg shadow">
+          <div className="flex items-center">
+            <XCircle className="w-8 h-8 text-red-600" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Rejected</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.rejectedRequests}</p>
             </div>
-            <Wrench className="w-8 h-8 text-orange-500" />
           </div>
         </div>
-      </motion.div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Monthly Trends Chart */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="card p-6"
-        >
-          <h3 className="text-lg font-semibold text-primary mb-4">Monthly Activity Trends</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={monthlyTrends}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Line type="monotone" dataKey="procurement" stroke="#1D3557" strokeWidth={2} name="Procurement" />
-              <Line type="monotone" dataKey="warehouse" stroke="#457B9D" strokeWidth={2} name="Warehouse" />
-              <Line type="monotone" dataKey="projects" stroke="#00A896" strokeWidth={2} name="Projects" />
-            </LineChart>
-          </ResponsiveContainer>
-        </motion.div>
-
-        {/* Stock Level Analysis */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-          className="card p-6"
-        >
-          <h3 className="text-lg font-semibold text-primary mb-4">Stock Level Analysis</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={stockLevels}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="category" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="current" fill="#00A896" name="Current Level" />
-              <Bar dataKey="optimal" fill="#1D3557" name="Optimal Level" />
-            </BarChart>
-          </ResponsiveContainer>
-        </motion.div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Approval Requests */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-          className="card p-6"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-primary">Procurement Approval Requests</h3>
-            <button className="btn-primary text-sm">View All</button>
-          </div>
-          <div className="space-y-3">
-            {loading ? (
-              <div className="text-center py-4">Loading approval requests...</div>
-            ) : approvalRequests.length === 0 ? (
-              <div className="text-center py-4 text-gray-500">No pending approval requests</div>
-            ) : (
-              approvalRequests.map((request) => (
-                <div key={request.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">Purchase Order</p>
-                    <p className="text-sm text-gray-600">{request.supplier} • ₱{request.amount.toLocaleString()}</p>
-                    <div className="flex items-center space-x-2 mt-1">
-                      <span className="px-2 py-1 rounded-full text-xs bg-orange-100 text-orange-800">
-                        {request.items} items
-                      </span>
-                      <span className="px-2 py-1 rounded-full text-xs bg-orange-100 text-orange-800">
-                        Pending
-                      </span>
+      {/* Action Buttons */}
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex space-x-4">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`px-4 py-2 rounded-lg font-medium ${
+              activeTab === 'overview'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            Overview
+          </button>
+          <button
+            onClick={() => setActiveTab('approvals')}
+            className={`px-4 py-2 rounded-lg font-medium ${
+              activeTab === 'approvals'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            Purchase Requests
+            {stats.pendingApprovals > 0 && (
+              <span className="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                {stats.pendingApprovals}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('procurement')}
+            className={`px-4 py-2 rounded-lg font-medium ${
+              activeTab === 'procurement'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            Procurement Approvals
+            {procurementApprovals.length > 0 && (
+              <span className="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                {procurementApprovals.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('inventory')}
+            className={`px-4 py-2 rounded-lg font-medium ${
+              activeTab === 'inventory'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            Inventory Approvals
+            {inventoryApprovals.length > 0 && (
+              <span className="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                {inventoryApprovals.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('notifications')}
+            className={`px-4 py-2 rounded-lg font-medium ${
+              activeTab === 'notifications'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            Notifications
+            {(notifications || []).filter(n => !n.is_read).length > 0 && (
+              <span className="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                {(notifications || []).filter(n => !n.is_read).length}
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      {activeTab === 'overview' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Pending Approvals */}
+          <div className="bg-white rounded-lg shadow">
+            <div className="p-6 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">Pending Approvals</h3>
+            </div>
+            <div className="p-6">
+              {pendingApprovals.slice(0, 5).map((approval) => (
+                <div key={approval.approval_id || approval.id} className="flex items-center justify-between py-3 border-b last:border-b-0">
+                  <div className="flex items-center">
+                    <Clock className="w-5 h-5 text-yellow-500" />
+                    <div className="ml-3">
+                      <p className="font-medium text-gray-900">{approval.request_title}</p>
+                      <p className="text-sm text-gray-600">by {approval.requested_by_name}</p>
                     </div>
                   </div>
-                  <div className="flex space-x-2">
-                    <button 
-                      onClick={() => handleApproveRequest(request.id)}
-                      className="px-3 py-1 bg-green-500 text-white text-xs rounded-lg hover:bg-green-600"
-                    >
-                      Approve
-                    </button>
-                    <button 
-                      onClick={() => handleRejectRequest(request.id)}
-                      className="px-3 py-1 bg-red-500 text-white text-xs rounded-lg hover:bg-red-600"
-                    >
-                      Reject
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </motion.div>
-
-        {/* Project Status */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.5 }}
-          className="card p-6"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-primary">Project Logistics Status</h3>
-            <button className="btn-primary text-sm">View All Projects</button>
-          </div>
-          <div className="space-y-4">
-            {loading ? (
-              <div className="text-center py-4">Loading projects...</div>
-            ) : projectStatus.length === 0 ? (
-              <div className="text-center py-4 text-gray-500">No active projects</div>
-            ) : (
-              projectStatus.map((project) => (
-                <div key={project.id} className="p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="font-medium text-gray-900">{project.name}</p>
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      project.status === 'on_track' ? 'bg-green-100 text-green-800' :
-                      project.status === 'delayed' ? 'bg-red-100 text-red-800' :
-                      'bg-blue-100 text-blue-800'
-                    }`}>
-                      {project.status.replace('_', ' ').toUpperCase()}
+                  <div className="flex items-center space-x-2">
+                    <span className={`px-2 py-1 text-xs rounded-full ${getPriorityColor(approval.priority)}`}>
+                      {approval.priority}
+                    </span>
+                    <span className="text-sm font-medium text-gray-900">
+                      ${approval.total_amount ? approval.total_amount.toFixed(2) : '0.00'}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600">Progress: {project.progress}%</span>
-                    <span className="text-sm text-gray-600">Deadline: {new Date(project.end_date).toLocaleDateString()}</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-primary h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${project.progress}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-end mt-2">
-                    <button
-                      onClick={() => {
-                        const newProgress = Math.min(project.progress + 10, 100)
-                        handleUpdateProjectProgress(project.id, newProgress)
-                      }}
-                      className="text-xs text-primary hover:text-primary-dark"
-                    >
-                      Update Progress
-                    </button>
+                </div>
+              ))}
+              {pendingApprovals.length === 0 && (
+                <p className="text-gray-500 text-center py-4">No pending approvals</p>
+              )}
+            </div>
+          </div>
+
+          {/* Recent Notifications */}
+          <div className="bg-white rounded-lg shadow">
+            <div className="p-6 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">Recent Notifications</h3>
+            </div>
+            <div className="p-6">
+              {(notifications || []).slice(0, 5).map((notification) => (
+                <div key={notification.id} className="flex items-start py-3 border-b last:border-b-0">
+                  <Bell className="w-5 h-5 text-blue-600 mt-1" />
+                  <div className="ml-3 flex-1">
+                    <p className="font-medium text-gray-900">{notification.title}</p>
+                    <p className="text-sm text-gray-600">{notification.message}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {new Date(notification.created_at).toLocaleDateString()}
+                    </p>
                   </div>
                 </div>
-              ))
+              ))}
+              {(notifications || []).length === 0 && (
+                <p className="text-gray-500 text-center py-4">No notifications</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'approvals' && (
+        <div className="bg-white rounded-lg shadow">
+          <div className="p-6 border-b">
+             <h3 className="text-lg font-semibold text-gray-900">Purchase Requests</h3>
+             <p className="text-sm text-gray-600 mt-1">Traditional purchase requests from employees</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Request</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Requested By</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Required Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {pendingApprovals.map((approval) => (
+                   <tr key={approval.approval_id || approval.id}>
+                    <td className="px-6 py-4">
+                      <div>
+                        <p className="font-medium text-gray-900">{approval.request_title}</p>
+                        <p className="text-sm text-gray-600">{approval.request_description}</p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <p className="text-sm text-gray-900">{approval.requested_by_name}</p>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-gray-900">
+                         ${approval.total_amount ? approval.total_amount.toFixed(2) : '0.00'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center">
+                        {getPriorityIcon(approval.priority)}
+                        <span className={`ml-2 px-2 py-1 text-xs rounded-full ${getPriorityColor(approval.priority)}`}>
+                          {approval.priority}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {new Date(approval.required_date).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => openApprovalModal(approval, 'approve')}
+                          className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 flex items-center"
+                        >
+                          <CheckCircle className="w-4 h-4 mr-1" />
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => openApprovalModal(approval, 'reject')}
+                          className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 flex items-center"
+                        >
+                          <XCircle className="w-4 h-4 mr-1" />
+                          Reject
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {pendingApprovals.length === 0 && (
+              <div className="text-center py-8">
+                <CheckCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                 <p className="text-gray-500">No pending purchase requests</p>
+               </div>
+             )}
+           </div>
+         </div>
+       )}
+
+       {activeTab === 'procurement' && (
+         <div className="bg-white rounded-lg shadow">
+           <div className="p-6 border-b">
+             <h3 className="text-lg font-semibold text-gray-900">Procurement Approvals</h3>
+             <p className="text-sm text-gray-600 mt-1">Procurement requests that need manager approval</p>
+           </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit Price</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Value</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Requested By</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {console.log('🔍 RENDERING TABLE: procurementApprovals length =', procurementApprovals.length)}
+                {procurementApprovals.map((approval) => (
+                  <tr key={approval.id}>
+                    <td className="px-6 py-4">
+                      <div>
+                        <p className="font-medium text-gray-900">{approval.item_name}</p>
+                        <p className="text-sm text-gray-600">{approval.description}</p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-gray-900">{approval.quantity}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-gray-900">
+                        ${approval.unit_price ? approval.unit_price.toFixed(2) : '0.00'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-gray-900">
+                        ${approval.total_value ? approval.total_value.toFixed(2) : '0.00'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-gray-600">
+                        {approval.requested_by_user?.full_name || 'Unknown'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2 py-1 text-xs rounded-full ${getPriorityColor(approval.priority)}`}>
+                        {approval.priority}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleProcurementApproval(approval.id, 'approve')}
+                          className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 flex items-center"
+                        >
+                          <CheckCircle className="w-4 h-4 mr-1" />
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleProcurementApproval(approval.id, 'reject')}
+                          className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 flex items-center"
+                        >
+                          <XCircle className="w-4 h-4 mr-1" />
+                          Reject
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {procurementApprovals.length === 0 && (
+              <div className="text-center py-8">
+                <CheckCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500">No pending procurement approvals</p>
+                {console.log('🔍 EMPTY STATE: procurementApprovals.length =', procurementApprovals.length)}
+              </div>
             )}
           </div>
-        </motion.div>
-      </div>
-
-      {/* Quick Actions */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.6 }}
-        className="card p-6"
-      >
-        <h3 className="text-lg font-semibold text-primary mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <button 
-            onClick={() => loadManagerData()}
-            className="btn-primary flex items-center justify-center space-x-2"
-          >
-            <CheckCircle className="w-5 h-5" />
-            <span>Refresh Data</span>
-          </button>
-          <button 
-            onClick={handleGenerateManagerReport}
-            className="btn-secondary flex items-center justify-center space-x-2"
-          >
-            <TrendingUp className="w-5 h-5" />
-            <span>Generate Report</span>
-          </button>
-          <button 
-            onClick={() => {
-              // Monitor all projects
-              toast.success('Monitoring all active projects...')
-            }}
-            className="btn-primary flex items-center justify-center space-x-2"
-          >
-            <AlertCircle className="w-5 h-5" />
-            <span>Monitor Progress</span>
-          </button>
-          <button 
-            onClick={() => {
-              // System overview
-              toast.success('System overview generated!')
-            }}
-            className="btn-secondary flex items-center justify-center space-x-2"
-          >
-            <Package className="w-5 h-5" />
-            <span>System Overview</span>
-          </button>
         </div>
-        
-        {/* Additional Manager Actions */}
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <h4 className="text-sm font-medium text-gray-700 mb-3">Management Actions</h4>
-          <div className="flex flex-wrap gap-2">
-            <button 
-              onClick={() => handleBulkApproval('approve_all')}
-              className="px-3 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600"
-            >
-              Approve All Requests
-            </button>
-            <button 
-              onClick={() => handleBulkApproval('reject_all')}
-              className="px-3 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600"
-            >
-              Reject All Requests
-            </button>
-            <button 
-              onClick={() => {
-                // Export manager data
-                const csvData = {
-                  approvalRequests: approvalRequests.length,
-                  projects: projectStatus.length,
-                  totalSpending: approvalRequests.reduce((sum, req) => sum + req.amount, 0)
-                }
-                
-                toast.success('Manager data exported!')
-              }}
-              className="px-3 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600"
-            >
-              Export Data
-            </button>
-            <button 
-              onClick={() => {
-                // Department performance
-                toast.success('Department performance analysis generated!')
-              }}
-              className="px-3 py-2 bg-purple-500 text-white text-sm rounded-lg hover:bg-purple-600"
-            >
-              Performance Analysis
-            </button>
+      )}
+
+       {activeTab === 'inventory' && (
+         <div className="bg-white rounded-lg shadow">
+           <div className="p-6 border-b">
+             <h3 className="text-lg font-semibold text-gray-900">Inventory Approvals</h3>
+             <p className="text-sm text-gray-600 mt-1">Inventory change requests that need manager approval</p>
+           </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit Price</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Value</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Requested By</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {inventoryApprovals.map((approval) => (
+                  <tr key={approval.id}>
+                    <td className="px-6 py-4">
+                      <div>
+                        <p className="font-medium text-gray-900">{approval.item_name}</p>
+                        <p className="text-sm text-gray-600">{approval.request_type}</p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-gray-900">{approval.quantity}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-gray-900">
+                        ${approval.unit_price ? approval.unit_price.toFixed(2) : '0.00'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-gray-900">
+                        ${approval.total_value ? approval.total_value.toFixed(2) : '0.00'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-gray-600">
+                        {approval.requested_by_user?.full_name || 'Unknown'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-gray-600">
+                        {approval.request_reason}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleInventoryApproval(approval.id, 'approve')}
+                          className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 flex items-center"
+                        >
+                          <CheckCircle className="w-4 h-4 mr-1" />
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleInventoryApproval(approval.id, 'reject')}
+                          className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 flex items-center"
+                        >
+                          <XCircle className="w-4 h-4 mr-1" />
+                          Reject
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {inventoryApprovals.length === 0 && (
+              <div className="text-center py-8">
+                <CheckCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500">No pending inventory approvals</p>
+              </div>
+            )}
           </div>
         </div>
-      </motion.div>
+      )}
+
+      {activeTab === 'notifications' && (
+        <div className="bg-white rounded-lg shadow">
+          <div className="p-6 border-b">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
+              <button
+                onClick={() => approvalService.markAllNotificationsAsRead(currentUser.id)}
+                className="text-sm text-blue-600 hover:text-blue-800"
+              >
+                Mark all as read
+              </button>
+            </div>
+          </div>
+          <div className="divide-y divide-gray-200">
+            {(notifications || []).map((notification) => (
+              <div key={notification.id} className="p-6 hover:bg-gray-50">
+                <div className="flex items-start">
+                  <Bell className={`w-5 h-5 mt-1 ${notification.is_read ? 'text-gray-400' : 'text-blue-600'}`} />
+                  <div className="ml-3 flex-1">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className={`font-medium ${notification.is_read ? 'text-gray-600' : 'text-gray-900'}`}>
+                          {notification.title}
+                        </p>
+                        <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
+                      </div>
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        notification.type === 'success' ? 'bg-green-100 text-green-800' :
+                        notification.type === 'error' ? 'bg-red-100 text-red-800' :
+                        notification.type === 'warning' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-blue-100 text-blue-800'
+                      }`}>
+                        {notification.type}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      {new Date(notification.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {(notifications || []).length === 0 && (
+              <div className="text-center py-8">
+                <Bell className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500">No notifications</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Approval Modal */}
+      {showApprovalModal && selectedApproval && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              {approvalAction === 'approve' ? 'Approve' : 'Reject'} Request
+            </h3>
+            
+            <div className="mb-4">
+              <p className="font-medium text-gray-900">{selectedApproval.request_title}</p>
+              <p className="text-sm text-gray-600">by {selectedApproval.requested_by_name}</p>
+              <p className="text-sm text-gray-600">Amount: ${selectedApproval.total_amount ? selectedApproval.total_amount.toFixed(2) : '0.00'}</p>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Comments {approvalAction === 'reject' ? '(Required)' : '(Optional)'}
+              </label>
+              <textarea
+                rows={3}
+                value={approvalComments}
+                onChange={(e) => setApprovalComments(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder={approvalAction === 'approve' ? 'Add approval comments...' : 'Reason for rejection...'}
+              />
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowApprovalModal(false)}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleApprovalAction(approvalAction)}
+                disabled={loading || (approvalAction === 'reject' && !approvalComments.trim())}
+                className={`px-4 py-2 text-white rounded-lg disabled:opacity-50 ${
+                  approvalAction === 'approve'
+                    ? 'bg-green-600 hover:bg-green-700'
+                    : 'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                {loading ? 'Processing...' : `${approvalAction === 'approve' ? 'Approve' : 'Reject'} Request`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

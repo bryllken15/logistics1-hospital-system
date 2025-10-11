@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { FileText, Upload, CheckCircle, Archive, Search, Download, Eye, X, Plus } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
-import { documentService, systemLogService, deliveryReceiptService, analyticsService } from '../../services/database'
+import { documentService, documentVersionService, documentApprovalService, systemLogService, deliveryReceiptService, analyticsService } from '../../services/database'
 import { useDocumentUpdates, useDeliveryReceiptUpdates } from '../../hooks/useRealtimeUpdates'
 import NotificationCenter from '../NotificationCenter'
 import toast from 'react-hot-toast'
@@ -15,6 +15,9 @@ const DocumentAnalystDashboard = () => {
   const [filterType, setFilterType] = useState('all')
   const [documents, setDocuments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [documentLoading, setDocumentLoading] = useState(false)
+  const [uploadLoading, setUploadLoading] = useState(false)
+  const [verifyLoading, setVerifyLoading] = useState(false)
   const [showUploadForm, setShowUploadForm] = useState(false)
   const [showVerifyForm, setShowVerifyForm] = useState(false)
   const [selectedDocument, setSelectedDocument] = useState<any>(null)
@@ -70,10 +73,20 @@ const DocumentAnalystDashboard = () => {
   const loadDocumentData = async () => {
     try {
       setLoading(true)
-      const data = await documentService.getAll()
-      setDocuments(data || [])
+      console.log('🔄 Loading document data...')
+      
+      try {
+        const data = await documentService.getAll()
+        console.log('✅ Documents loaded:', data?.length || 0)
+        setDocuments(data || [])
+      } catch (error) {
+        console.error('❌ Failed to load documents:', error)
+        toast.error('Failed to load documents')
+        setDocuments([])
+      }
     } catch (error) {
-      console.error('Error loading document data:', error)
+      console.error('💥 Document data loading failed:', error)
+      toast.error('Failed to load document data')
     } finally {
       setLoading(false)
     }
@@ -81,20 +94,33 @@ const DocumentAnalystDashboard = () => {
 
   const handleUploadDocument = async () => {
     try {
+      setUploadLoading(true)
+      
+      // Validate required fields
+      if (!newDocument.file_name || !newDocument.file_type) {
+        toast.error('Please fill in all required fields')
+        return
+      }
+      
       const documentData = {
         ...newDocument,
-        uploaded_by: '77777777-7777-7777-7777-777777777777', // Document Analyst user ID
+        uploaded_by: user?.id || '77777777-7777-7777-7777-777777777777', // Document Analyst user ID
         status: 'pending_verification'
       }
       
+      console.log('🔄 Creating document:', documentData)
       await documentService.create(documentData)
       
       // Log document upload
-      await systemLogService.create({
-        action: 'Document Uploaded',
-        user_id: '77777777-7777-7777-7777-777777777777',
-        details: `Document uploaded: ${newDocument.file_name} (${newDocument.file_type}) - ${(newDocument.file_size / 1024 / 1024).toFixed(1)}MB`
-      })
+      try {
+        await systemLogService.create({
+          action: 'Document Uploaded',
+          user_id: user?.id || '77777777-7777-7777-7777-777777777777',
+          details: `Document uploaded: ${newDocument.file_name} (${newDocument.file_type}) - ${(newDocument.file_size / 1024 / 1024).toFixed(1)}MB`
+        })
+      } catch (logError) {
+        console.warn('Failed to log document upload:', logError)
+      }
       
       await loadDocumentData()
       setNewDocument({ file_name: '', file_type: '', description: '', file_size: 0 })
@@ -102,21 +128,29 @@ const DocumentAnalystDashboard = () => {
       toast.success('Document uploaded successfully!')
     } catch (error) {
       console.error('Error uploading document:', error)
-      toast.error('Failed to upload document')
+      toast.error(`Failed to upload document: ${error.message || 'Unknown error'}`)
+    } finally {
+      setUploadLoading(false)
     }
   }
 
   const handleVerifyDocument = async (documentId: string, status: string) => {
     try {
-      setLoading(true)
+      setVerifyLoading(true)
+      
+      console.log('🔄 Verifying document:', documentId, status)
       await documentService.updateStatus(documentId, status)
       
       // Log document verification
-      await systemLogService.create({
-        action: 'Document Verified',
-        user_id: '77777777-7777-7777-7777-777777777777',
-        details: `Document ${status}: ${selectedDocument?.file_name} - ${verificationNotes}`
-      })
+      try {
+        await systemLogService.create({
+          action: 'Document Verified',
+          user_id: user?.id || '77777777-7777-7777-7777-777777777777',
+          details: `Document ${status}: ${selectedDocument?.file_name} - ${verificationNotes}`
+        })
+      } catch (logError) {
+        console.warn('Failed to log document verification:', logError)
+      }
       
       await loadDocumentData()
       setVerificationNotes('')
@@ -125,28 +159,37 @@ const DocumentAnalystDashboard = () => {
       toast.success(`Document ${status} successfully!`)
     } catch (error) {
       console.error('Error verifying document:', error)
-      toast.error('Failed to verify document')
+      toast.error(`Failed to verify document: ${error.message || 'Unknown error'}`)
     } finally {
-      setLoading(false)
+      setVerifyLoading(false)
     }
   }
 
   const handleArchiveDocument = async (documentId: string) => {
     try {
+      setDocumentLoading(true)
+      
+      console.log('🔄 Archiving document:', documentId)
       await documentService.archive(documentId)
       
       // Log document archival
-      await systemLogService.create({
-        action: 'Document Archived',
-        user_id: '77777777-7777-7777-7777-777777777777',
-        details: `Document archived: ${documentId}`
-      })
+      try {
+        await systemLogService.create({
+          action: 'Document Archived',
+          user_id: user?.id || '77777777-7777-7777-7777-777777777777',
+          details: `Document archived: ${documentId}`
+        })
+      } catch (logError) {
+        console.warn('Failed to log document archiving:', logError)
+      }
       
       await loadDocumentData()
       toast.success('Document archived successfully!')
     } catch (error) {
       console.error('Error archiving document:', error)
-      toast.error('Failed to archive document')
+      toast.error(`Failed to archive document: ${error.message || 'Unknown error'}`)
+    } finally {
+      setDocumentLoading(false)
     }
   }
 
@@ -626,13 +669,22 @@ const DocumentAnalystDashboard = () => {
                   </td>
                   <td className="py-3">
                     <div className="flex space-x-2">
-                      <button className="p-1 text-gray-400 hover:text-primary">
+                      <button 
+                        className="p-1 text-gray-400 hover:text-primary"
+                        title="View Document"
+                      >
                         <Eye className="w-4 h-4" />
                       </button>
-                      <button className="p-1 text-gray-400 hover:text-primary">
+                      <button 
+                        className="p-1 text-gray-400 hover:text-primary"
+                        title="Verify Document"
+                      >
                         <CheckCircle className="w-4 h-4" />
                       </button>
-                      <button className="p-1 text-gray-400 hover:text-primary">
+                      <button 
+                        className="p-1 text-gray-400 hover:text-primary"
+                        title="Archive Document"
+                      >
                         <Archive className="w-4 h-4" />
                       </button>
                     </div>
@@ -843,9 +895,10 @@ const DocumentAnalystDashboard = () => {
               </button>
               <button
                 onClick={handleUploadDocument}
-                className="btn-primary"
+                disabled={uploadLoading}
+                className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Upload Document
+                {uploadLoading ? 'Uploading...' : 'Upload Document'}
               </button>
             </div>
           </motion.div>
@@ -897,15 +950,17 @@ const DocumentAnalystDashboard = () => {
               </button>
               <button
                 onClick={() => handleVerifyDocument(selectedDocument.id, 'verified')}
-                className="btn-primary"
+                disabled={verifyLoading}
+                className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Approve
+                {verifyLoading ? 'Approving...' : 'Approve'}
               </button>
               <button
                 onClick={() => handleVerifyDocument(selectedDocument.id, 'rejected')}
-                className="btn-secondary bg-red-500 hover:bg-red-600"
+                disabled={verifyLoading}
+                className="btn-secondary bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Reject
+                {verifyLoading ? 'Rejecting...' : 'Reject'}
               </button>
             </div>
           </motion.div>

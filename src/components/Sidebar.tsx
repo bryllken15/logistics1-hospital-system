@@ -37,7 +37,6 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
         { icon: Settings, label: 'System Settings', href: '/settings', roles: ['admin'] }
       ],
       manager: [
-        { icon: BarChart3, label: 'Analytics', href: '/analytics', roles: ['manager'] },
         { icon: ClipboardList, label: 'Approvals', href: '/approvals', roles: ['manager'] }
       ],
       employee: [

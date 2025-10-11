@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Testing - Role-based Access</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: #2563eb;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .test-section {
+            padding: 20px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .test-section:last-child {
+            border-bottom: none;
+        }
+        .test-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #1f2937;
+        }
+        .test-description {
+            color: #6b7280;
+            margin-bottom: 15px;
+        }
+        .test-steps {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #3b82f6;
+        }
+        .test-steps ol {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .test-steps li {
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+        .role-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .role-btn {
+            padding: 8px 16px;
+            border: 2px solid #d1d5db;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+        .role-btn:hover {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+        .role-btn.active {
+            border-color: #3b82f6;
+            background: #3b82f6;
+            color: white;
+        }
+        .dashboard-link {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #10b981;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        .dashboard-link:hover {
+            background: #059669;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-left: 10px;
+        }
+        .status.pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        .status.success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .status.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .checklist {
+            background: #f0f9ff;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #0ea5e9;
+        }
+        .checklist ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .checklist li {
+            margin-bottom: 5px;
+        }
+        .warning {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            color: #92400e;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        .warning strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏥 Hospital Logistics Dashboard Testing</h1>
+            <p>Test all role-based dashboards and real-time functionality</p>
+        </div>
+
+        <div class="test-section">
+            <div class="warning">
+                <strong>⚠️ Prerequisites:</strong>
+                Before testing, ensure you have:
+                <ul style="margin: 10px 0 0 20px;">
+                    <li>Run <code>supabase/clean_migration.sql</code> in Supabase SQL Editor</li>
+                    <li>Run <code>CREATE_APPROVAL_SYSTEM.sql</code> in Supabase SQL Editor</li>
+                    <li>Started your frontend application (npm run dev)</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">🔍 Database Setup Verification</div>
+            <div class="test-description">First, verify that the database schema is properly set up.</div>
+            <div class="test-steps">
+                <ol>
+                    <li>Open your Supabase project dashboard</li>
+                    <li>Go to SQL Editor</li>
+                    <li>Run this query to check notifications table: <code>SELECT COUNT(*) FROM notifications;</code></li>
+                    <li>Run this query to check approval tables: <code>SELECT COUNT(*) FROM purchase_request_approvals;</code></li>
+                    <li>Both queries should return numbers (not errors)</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">👥 Role-based Dashboard Testing</div>
+            <div class="test-description">Test each role's dashboard to ensure proper access and functionality.</div>
+            
+            <div class="role-selector">
+                <button class="role-btn active" onclick="selectRole('admin')">Admin</button>
+                <button class="role-btn" onclick="selectRole('manager')">Manager</button>
+                <button class="role-btn" onclick="selectRole('employee')">Employee</button>
+                <button class="role-btn" onclick="selectRole('procurement')">Procurement</button>
+                <button class="role-btn" onclick="selectRole('project_manager')">Project Manager</button>
+                <button class="role-btn" onclick="selectRole('maintenance')">Maintenance</button>
+                <button class="role-btn" onclick="selectRole('document_analyst')">Document Analyst</button>
+            </div>
+
+            <div id="role-tests">
+                <!-- Admin Dashboard Test -->
+                <div id="admin-test" class="role-test">
+                    <h3>Admin Dashboard Test</h3>
+                    <div class="test-steps">
+                        <ol>
+                            <li>Navigate to <a href="http://localhost:5173/dashboard" class="dashboard-link">Admin Dashboard</a></li>
+                            <li>Login with admin credentials (username: admin, password: admin123)</li>
+                            <li>Verify the dashboard loads without "notifications.filter is not a function" errors</li>
+                            <li>Check that user management section is visible</li>
+                            <li>Verify notifications display in the top navigation</li>
+                            <li>Check that system logs are accessible</li>
+                        </ol>
+                    </div>
+                    <div class="checklist">
+                        <strong>Admin Dashboard Checklist:</strong>
+                        <ul>
+                            <li>✅ Dashboard loads without errors</li>
+                            <li>✅ User management interface visible</li>
+                            <li>✅ Notifications display correctly</li>
+                            <li>✅ System logs accessible</li>
+                            <li>✅ Real-time updates working</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Manager Dashboard Test -->
+                <div id="manager-test" class="role-test" style="display: none;">
+                    <h3>Manager Dashboard Test</h3>
+                    <div class="test-steps">
+                        <ol>
+                            <li>Navigate to <a href="http://localhost:5173/dashboard" class="dashboard-link">Manager Dashboard</a></li>
+                            <li>Login with manager credentials (username: manager, password: manager123)</li>
+                            <li>Verify pending approvals section loads</li>
+                            <li>Test approve/reject functionality</li>
+                            <li>Check notifications display</li>
+                            <li>Verify real-time updates when new requests are created</li>
+                        </ol>
+                    </div>
+                    <div class="checklist">
+                        <strong>Manager Dashboard Checklist:</strong>
+                        <ul>
+                            <li>✅ Dashboard loads without errors</li>
+                            <li>✅ Pending approvals visible</li>
+                            <li>✅ Approve/reject buttons work</li>
+                            <li>✅ Notifications display correctly</li>
+                            <li>✅ Real-time updates working</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Employee Dashboard Test -->
+                <div id="employee-test" class="role-test" style="display: none;">
+                    <h3>Employee Dashboard Test</h3>
+                    <div class="test-steps">
+                        <ol>
+                            <li>Navigate to <a href="http://localhost:5173/dashboard" class="dashboard-link">Employee Dashboard</a></li>
+                            <li>Login with employee credentials (username: employee, password: employee123)</li>
+                            <li>Verify user requests section loads</li>
+                            <li>Test creating a new purchase request</li>
+                            <li>Check notifications display</li>
+                            <li>Verify request status updates in real-time</li>
+                        </ol>
+                    </div>
+                    <div class="checklist">
+                        <strong>Employee Dashboard Checklist:</strong>
+                        <ul>
+                            <li>✅ Dashboard loads without errors</li>
+                            <li>✅ User requests visible</li>
+                            <li>✅ Create request form works</li>
+                            <li>✅ Notifications display correctly</li>
+                            <li>✅ Real-time updates working</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Procurement Dashboard Test -->
+                <div id="procurement-test" class="role-test" style="display: none;">
+                    <h3>Procurement Dashboard Test</h3>
+                    <div class="test-steps">
+                        <ol>
+                            <li>Navigate to <a href="http://localhost:5173/dashboard" class="dashboard-link">Procurement Dashboard</a></li>
+                            <li>Login with procurement credentials (username: procurement, password: procurement123)</li>
+                            <li>Verify purchase orders section loads</li>
+                            <li>Check suppliers data displays</li>
+                            <li>Test creating new purchase orders</li>
+                            <li>Verify real-time order updates</li>
+                        </ol>
+                    </div>
+                    <div class="checklist">
+                        <strong>Procurement Dashboard Checklist:</strong>
+                        <ul>
+                            <li>✅ Dashboard loads without errors</li>
+                            <li>✅ Purchase orders visible</li>
+                            <li>✅ Suppliers data displays</li>
+                            <li>✅ Create order functionality works</li>
+                            <li>✅ Real-time updates working</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Project Manager Dashboard Test -->
+                <div id="project_manager-test" class="role-test" style="display: none;">
+                    <h3>Project Manager Dashboard Test</h3>
+                    <div class="test-steps">
+                        <ol>
+                            <li>Navigate to <a href="http://localhost:5173/dashboard" class="dashboard-link">Project Manager Dashboard</a></li>
+                            <li>Login with project manager credentials (username: project_manager, password: pm123)</li>
+                            <li>Verify projects section loads with stats</li>
+                            <li>Check delivery approvals work</li>
+                            <li>Test inventory and procurement approvals</li>
+                            <li>Verify real-time project updates</li>
+                        </ol>
+                    </div>
+                    <div class="checklist">
+                        <strong>Project Manager Dashboard Checklist:</strong>
+                        <ul>
+                            <li>✅ Dashboard loads without errors</li>
+                            <li>✅ Projects with stats visible</li>
+                            <li>✅ Delivery approvals work</li>
+                            <li>✅ Inventory approvals accessible</li>
+                            <li>✅ Real-time updates working</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Maintenance Dashboard Test -->
+                <div id="maintenance-test" class="role-test" style="display: none;">
+                    <h3>Maintenance Dashboard Test</h3>
+                    <div class="test-steps">
+                        <ol>
+                            <li>Navigate to <a href="http://localhost:5173/dashboard" class="dashboard-link">Maintenance Dashboard</a></li>
+                            <li>Login with maintenance credentials (username: maintenance, password: maintenance123)</li>
+                            <li>Verify assets section loads</li>
+                            <li>Check maintenance logs display</li>
+                            <li>Test work order functionality</li>
+                            <li>Verify real-time asset updates</li>
+                        </ol>
+                    </div>
+                    <div class="checklist">
+                        <strong>Maintenance Dashboard Checklist:</strong>
+                        <ul>
+                            <li>✅ Dashboard loads without errors</li>
+                            <li>✅ Assets section visible</li>
+                            <li>✅ Maintenance logs display</li>
+                            <li>✅ Work orders functional</li>
+                            <li>✅ Real-time updates working</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Document Analyst Dashboard Test -->
+                <div id="document_analyst-test" class="role-test" style="display: none;">
+                    <h3>Document Analyst Dashboard Test</h3>
+                    <div class="test-steps">
+                        <ol>
+                            <li>Navigate to <a href="http://localhost:5173/dashboard" class="dashboard-link">Document Analyst Dashboard</a></li>
+                            <li>Login with document analyst credentials (username: document_analyst, password: analyst123)</li>
+                            <li>Verify documents section loads</li>
+                            <li>Check document versions display</li>
+                            <li>Test document upload functionality</li>
+                            <li>Verify real-time document updates</li>
+                        </ol>
+                    </div>
+                    <div class="checklist">
+                        <strong>Document Analyst Dashboard Checklist:</strong>
+                        <ul>
+                            <li>✅ Dashboard loads without errors</li>
+                            <li>✅ Documents section visible</li>
+                            <li>✅ Document versions display</li>
+                            <li>✅ Upload functionality works</li>
+                            <li>✅ Real-time updates working</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">🔄 Real-time Cross-user Testing</div>
+            <div class="test-description">Test real-time notifications and updates between different users.</div>
+            <div class="test-steps">
+                <ol>
+                    <li>Open two browser windows/tabs</li>
+                    <li>Login as <strong>Employee</strong> in the first window</li>
+                    <li>Login as <strong>Manager</strong> in the second window</li>
+                    <li>In the Employee window, create a new purchase request</li>
+                    <li>Verify that a notification appears in real-time in the Manager window</li>
+                    <li>In the Manager window, approve or reject the request</li>
+                    <li>Verify that the status updates in real-time in the Employee window</li>
+                </ol>
+            </div>
+            <div class="checklist">
+                <strong>Real-time Testing Checklist:</strong>
+                <ul>
+                    <li>✅ Cross-user notifications work</li>
+                    <li>✅ Real-time status updates work</li>
+                    <li>✅ No "filter is not a function" errors</li>
+                    <li>✅ All dashboards update automatically</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">✅ Final Validation</div>
+            <div class="test-description">Complete checklist to ensure everything is working correctly.</div>
+            <div class="checklist">
+                <strong>Final Validation Checklist:</strong>
+                <ul>
+                    <li>✅ Database schema created successfully</li>
+                    <li>✅ Notifications table exists and accessible</li>
+                    <li>✅ Approval system tables created</li>
+                    <li>✅ No "filter is not a function" errors in any dashboard</li>
+                    <li>✅ All 7 role-based dashboards load without errors</li>
+                    <li>✅ Real-time notifications working across all dashboards</li>
+                    <li>✅ Real-time data updates working (purchase orders, approvals, etc.)</li>
+                    <li>✅ Cross-user notifications working (action by one user triggers notification for another)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function selectRole(role) {
+            // Update button states
+            document.querySelectorAll('.role-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // Show/hide role tests
+            document.querySelectorAll('.role-test').forEach(test => {
+                test.style.display = 'none';
+            });
+            document.getElementById(role + '-test').style.display = 'block';
+        }
+
+        // Initialize with admin role
+        selectRole('admin');
+    </script>
+</body>
+</html>
