@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { ClipboardList, Users, Truck, TrendingUp, Plus, Calendar, CheckCircle, X, Edit3 } from 'lucide-react'
+import { ClipboardList, Users, Truck, TrendingUp, Plus, Calendar, CheckCircle, X, Edit3, FileText } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 import { projectService, systemLogService, staffAssignmentService, userService, deliveryReceiptService, analyticsService, inventoryService, inventoryChangeService, procurementApprovalService, projectManagerReportService, staffAnalyticsService, exportService, projectDeliveryService, staffPerformanceService, pdfReportService, realtimeService } from '../../services/database'
 import { useProjectUpdates, useUserUpdates, useDeliveryReceiptUpdates } from '../../hooks/useRealtimeUpdates'

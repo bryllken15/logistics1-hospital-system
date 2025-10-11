@@ -401,7 +401,7 @@ const ManagerDashboard = () => {
             </div>
             <div className="p-6">
               {pendingApprovals.slice(0, 5).map((approval) => (
-                <div key={approval.approval_id || approval.id} className="flex items-center justify-between py-3 border-b last:border-b-0">
+                <div key={approval.approval_id || (approval as any).id} className="flex items-center justify-between py-3 border-b last:border-b-0">
                   <div className="flex items-center">
                     <Clock className="w-5 h-5 text-yellow-500" />
                     <div className="ml-3">
@@ -471,7 +471,7 @@ const ManagerDashboard = () => {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {pendingApprovals.map((approval) => (
-                   <tr key={approval.approval_id || approval.id}>
+                   <tr key={approval.approval_id || (approval as any).id}>
                     <td className="px-6 py-4">
                       <div>
                         <p className="font-medium text-gray-900">{approval.request_title}</p>
@@ -549,7 +549,7 @@ const ManagerDashboard = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {console.log('🔍 RENDERING TABLE: procurementApprovals length =', procurementApprovals.length)}
+                {/* Debug log removed for production */}
                 {procurementApprovals.map((approval) => (
                   <tr key={approval.id}>
                     <td className="px-6 py-4">
@@ -607,7 +607,7 @@ const ManagerDashboard = () => {
               <div className="text-center py-8">
                 <CheckCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <p className="text-gray-500">No pending procurement approvals</p>
-                {console.log('🔍 EMPTY STATE: procurementApprovals.length =', procurementApprovals.length)}
+                {/* Debug log removed for production */}
               </div>
             )}
           </div>
