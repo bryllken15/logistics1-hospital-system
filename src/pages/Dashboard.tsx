@@ -46,32 +46,26 @@ const Dashboard = () => {
 
     const roleSpecificItems = {
       admin: [
-        { icon: Users, label: 'Users', view: 'users', roles: ['admin'] },
-        { icon: BarChart3, label: 'Reports', view: 'reports', roles: ['admin'] }
+        { icon: Users, label: 'Users', view: 'users', roles: ['admin'] }
       ],
       manager: [
         { icon: ClipboardList, label: 'Approvals', view: 'approvals', roles: ['manager'] }
       ],
       employee: [
-        { icon: Package, label: 'Warehouse', view: 'warehouse', roles: ['employee'] },
-        { icon: BarChart3, label: 'Inventory', view: 'inventory-reports', roles: ['employee'] }
+        { icon: Package, label: 'Warehouse', view: 'warehouse', roles: ['employee'] }
       ],
       procurement: [
         { icon: ShoppingCart, label: 'Procurement', view: 'procurement', roles: ['procurement'] },
-        { icon: Package, label: 'Orders', view: 'purchase-orders', roles: ['procurement'] },
-        { icon: BarChart3, label: 'Suppliers', view: 'supplier-analytics', roles: ['procurement'] }
+        { icon: Package, label: 'Orders', view: 'purchase-orders', roles: ['procurement'] }
       ],
       project_manager: [
-        { icon: ClipboardList, label: 'Projects', view: 'project-tracker', roles: ['project_manager'] },
-        { icon: BarChart3, label: 'Reports', view: 'project-reports', roles: ['project_manager'] }
+        { icon: ClipboardList, label: 'Projects', view: 'project-tracker', roles: ['project_manager'] }
       ],
       maintenance: [
-        { icon: Wrench, label: 'Maintenance', view: 'maintenance', roles: ['maintenance'] },
-        { icon: BarChart3, label: 'Reports', view: 'maintenance-reports', roles: ['maintenance'] }
+        { icon: Wrench, label: 'Maintenance', view: 'maintenance', roles: ['maintenance'] }
       ],
       document_analyst: [
-        { icon: FileText, label: 'Documents', view: 'documents', roles: ['document_analyst'] },
-        { icon: BarChart3, label: 'Reports', view: 'document-reports', roles: ['document_analyst'] }
+        { icon: FileText, label: 'Documents', view: 'documents', roles: ['document_analyst'] }
       ]
     }
 
@@ -100,8 +94,6 @@ const Dashboard = () => {
       switch (currentView) {
         case 'users':
           return <AdminDashboard />
-        case 'reports':
-          return <AnalyticsDashboard />
         default:
           return <AdminDashboard />
       }
@@ -120,8 +112,6 @@ const Dashboard = () => {
       switch (currentView) {
         case 'warehouse':
           return <EmployeeDashboard />
-        case 'inventory-reports':
-          return <AnalyticsDashboard />
         default:
           return <EmployeeDashboard />
       }
@@ -133,8 +123,6 @@ const Dashboard = () => {
           return <ProcurementDashboard />
         case 'purchase-orders':
           return <ProcurementDashboard />
-        case 'supplier-analytics':
-          return <AnalyticsDashboard />
         default:
           return <ProcurementDashboard />
       }
@@ -144,8 +132,6 @@ const Dashboard = () => {
       switch (currentView) {
         case 'project-tracker':
           return <ProjectManagerDashboard />
-        case 'project-reports':
-          return <AnalyticsDashboard />
         default:
           return <ProjectManagerDashboard />
       }
@@ -155,8 +141,6 @@ const Dashboard = () => {
       switch (currentView) {
         case 'maintenance':
           return <MaintenanceDashboard />
-        case 'maintenance-reports':
-          return <AnalyticsDashboard />
         default:
           return <MaintenanceDashboard />
       }
@@ -166,8 +150,6 @@ const Dashboard = () => {
       switch (currentView) {
         case 'documents':
           return <DocumentAnalystDashboard />
-        case 'document-reports':
-          return <AnalyticsDashboard />
         default:
           return <DocumentAnalystDashboard />
       }
