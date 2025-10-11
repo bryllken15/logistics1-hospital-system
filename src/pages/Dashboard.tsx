@@ -99,9 +99,9 @@ const Dashboard = () => {
     if (user.role === 'admin') {
       switch (currentView) {
         case 'users':
-          return <div className="p-6"><h2 className="text-2xl font-bold mb-4">User Management</h2><p>User management functionality coming soon...</p></div>
+          return <AdminDashboard />
         case 'reports':
-          return <div className="p-6"><h2 className="text-2xl font-bold mb-4">System Reports</h2><p>System reports functionality coming soon...</p></div>
+          return <AnalyticsDashboard />
         default:
           return <AdminDashboard />
       }
@@ -110,7 +110,7 @@ const Dashboard = () => {
     if (user.role === 'manager') {
       switch (currentView) {
         case 'approvals':
-          return <div className="p-6"><h2 className="text-2xl font-bold mb-4">Approvals</h2><p>Approvals functionality coming soon...</p></div>
+          return <ManagerDashboard />
         default:
           return <ManagerDashboard />
       }
@@ -119,9 +119,9 @@ const Dashboard = () => {
     if (user.role === 'employee') {
       switch (currentView) {
         case 'warehouse':
-          return <div className="p-6"><h2 className="text-2xl font-bold mb-4">Smart Warehousing</h2><p>Warehouse functionality coming soon...</p></div>
+          return <EmployeeDashboard />
         case 'inventory-reports':
-          return <div className="p-6"><h2 className="text-2xl font-bold mb-4">Inventory Reports</h2><p>Inventory reports functionality coming soon...</p></div>
+          return <AnalyticsDashboard />
         default:
           return <EmployeeDashboard />
       }
@@ -130,11 +130,11 @@ const Dashboard = () => {
     if (user.role === 'procurement') {
       switch (currentView) {
         case 'procurement':
-          return <div className="p-6"><h2 className="text-2xl font-bold mb-4">Procurement & Sourcing</h2><p>Procurement functionality coming soon...</p></div>
+          return <ProcurementDashboard />
         case 'purchase-orders':
-          return <div className="p-6"><h2 className="text-2xl font-bold mb-4">Purchase Orders</h2><p>Purchase orders functionality coming soon...</p></div>
+          return <ProcurementDashboard />
         case 'supplier-analytics':
-          return <div className="p-6"><h2 className="text-2xl font-bold mb-4">Supplier Analytics</h2><p>Supplier analytics functionality coming soon...</p></div>
+          return <AnalyticsDashboard />
         default:
           return <ProcurementDashboard />
       }
@@ -143,9 +143,9 @@ const Dashboard = () => {
     if (user.role === 'project_manager') {
       switch (currentView) {
         case 'project-tracker':
-          return <div className="p-6"><h2 className="text-2xl font-bold mb-4">Project Logistics Tracker</h2><p>Project tracker functionality coming soon...</p></div>
+          return <ProjectManagerDashboard />
         case 'project-reports':
-          return <div className="p-6"><h2 className="text-2xl font-bold mb-4">Project Reports</h2><p>Project reports functionality coming soon...</p></div>
+          return <AnalyticsDashboard />
         default:
           return <ProjectManagerDashboard />
       }
@@ -156,7 +156,7 @@ const Dashboard = () => {
         case 'maintenance':
           return <MaintenanceDashboard />
         case 'maintenance-reports':
-          return <div className="p-6"><h2 className="text-2xl font-bold mb-4">Maintenance Reports</h2><p>Maintenance reports functionality coming soon...</p></div>
+          return <AnalyticsDashboard />
         default:
           return <MaintenanceDashboard />
       }
@@ -165,9 +165,9 @@ const Dashboard = () => {
     if (user.role === 'document_analyst') {
       switch (currentView) {
         case 'documents':
-          return <div className="p-6"><h2 className="text-2xl font-bold mb-4">Document Tracking & Records</h2><p>Document tracking functionality coming soon...</p></div>
+          return <DocumentAnalystDashboard />
         case 'document-reports':
-          return <div className="p-6"><h2 className="text-2xl font-bold mb-4">Document Reports</h2><p>Document reports functionality coming soon...</p></div>
+          return <AnalyticsDashboard />
         default:
           return <DocumentAnalystDashboard />
       }
